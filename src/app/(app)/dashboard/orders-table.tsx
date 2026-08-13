@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   Table,
@@ -35,11 +37,21 @@ interface OrdersTableProps {
   orders: DashboardOrder[];
   hasAnyOrders: boolean;
   activeStatus?: OrderStatus;
+  onClearFilter?: () => void;
 }
 
-export function OrdersTable({ orders, hasAnyOrders, activeStatus }: OrdersTableProps) {
+export function OrdersTable({
+  orders,
+  hasAnyOrders,
+  activeStatus,
+  onClearFilter,
+}: OrdersTableProps) {
   if (orders.length === 0) {
-    return hasAnyOrders ? <EmptyFilterState status={activeStatus} /> : <EmptyState />;
+    return hasAnyOrders ? (
+      <EmptyFilterState status={activeStatus} onClearFilter={onClearFilter} />
+    ) : (
+      <EmptyState />
+    );
   }
 
   return (
@@ -98,7 +110,13 @@ function EmptyState() {
   );
 }
 
-function EmptyFilterState({ status }: { status?: OrderStatus }) {
+function EmptyFilterState({
+  status,
+  onClearFilter,
+}: {
+  status?: OrderStatus;
+  onClearFilter?: () => void;
+}) {
   const label = status ? STATUS_LABELS[status] : "matching";
   return (
     <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-16 text-center">
@@ -108,7 +126,7 @@ function EmptyFilterState({ status }: { status?: OrderStatus }) {
           ? "Nothing is overdue right now — that's a good thing."
           : `You have no orders with this status.`}
       </p>
-      <Button variant="outline" render={<Link href="/dashboard" />}>
+      <Button variant="outline" onClick={onClearFilter}>
         Clear filter
       </Button>
     </div>

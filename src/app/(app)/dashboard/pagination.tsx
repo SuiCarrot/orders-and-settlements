@@ -1,4 +1,5 @@
-import Link from "next/link";
+"use client";
+
 import { Button } from "@/components/ui/button";
 import type { OrderStatus } from "@/server/domain/status";
 
@@ -7,17 +8,19 @@ interface PaginationProps {
   perPage: number;
   total: number;
   status?: OrderStatus;
+  onPageChange?: (page: number) => void;
 }
 
-export function Pagination({ page, perPage, total, status }: PaginationProps) {
+export function Pagination({ page, perPage, total, status, onPageChange }: PaginationProps) {
   const totalPages = Math.max(1, Math.ceil(total / perPage));
   if (totalPages <= 1) return null;
 
   function href(targetPage: number) {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
-    params.set("page", String(targetPage));
-    return `/dashboard?${params.toString()}`;
+    if (targetPage > 1) params.set("page", String(targetPage));
+    const qs = params.toString();
+    return qs ? `/dashboard?${qs}` : "/dashboard";
   }
 
   return (
@@ -30,7 +33,8 @@ export function Pagination({ page, perPage, total, status }: PaginationProps) {
           variant="outline"
           size="sm"
           disabled={page <= 1}
-          render={<Link href={href(page - 1)} />}
+          render={onPageChange ? undefined : <a href={href(page - 1)} />}
+          onClick={onPageChange ? () => onPageChange(page - 1) : undefined}
         >
           Previous
         </Button>
@@ -38,7 +42,8 @@ export function Pagination({ page, perPage, total, status }: PaginationProps) {
           variant="outline"
           size="sm"
           disabled={page >= totalPages}
-          render={<Link href={href(page + 1)} />}
+          render={onPageChange ? undefined : <a href={href(page + 1)} />}
+          onClick={onPageChange ? () => onPageChange(page + 1) : undefined}
         >
           Next
         </Button>

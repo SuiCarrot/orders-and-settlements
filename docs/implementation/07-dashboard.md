@@ -53,36 +53,12 @@ hand-edited URL such as `?status=nonsense` fails the same way in both places.
 
 ## Step 2 — Status filter
 
-Filter state lives in the URL, not in React state. `/dashboard?status=overdue` is then shareable,
-bookmarkable, survives a refresh, and needs no client-side data fetching.
+The first paint still comes from the server. After that, the tabs filter the already-loaded list
+in the browser — a `router.push` would refetch the RSC payload from Neon, which is the delay
+the pills were showing. `/dashboard?status=overdue` stays in the URL via `history.replaceState`,
+so the filter remains shareable and survives a refresh without waiting on the network.
 
-```tsx
-"use client";
-
-const STATUSES = [
-  { value: undefined, label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "partially_paid", label: "Partially paid" },
-  { value: "paid", label: "Paid" },
-  { value: "overdue", label: "Overdue" },
-] as const;
-
-export function StatusFilter({ active }: { active?: OrderStatus }) {
-  const router = useRouter();
-  const params = useSearchParams();
-
-  function select(status?: string) {
-    const next = new URLSearchParams(params);
-    status ? next.set("status", status) : next.delete("status");
-    next.delete("page"); // a new filter always starts on page one
-    router.push(`/dashboard?${next}`);
-  }
-  // renders a row of toggle buttons
-}
-```
-
-Resetting `page` when the filter changes prevents the empty-page-three problem, which is the most
-common bug in filtered lists.
+The REST API (`GET /api/orders?status=`) still filters in SQL; this is a UI concern only.
 
 ## Step 3 — The table
 
