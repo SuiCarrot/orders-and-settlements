@@ -1,8 +1,6 @@
-# Context & Architecture Briefing: CrossVal Take-Home Assignment
+# Context & Architecture Briefing: Orders and Settlements
 
 ## 1. Executive Context
-- **Company:** CrossVal (B2B Financial Platform / "Cursor for Finance").
-- **Assignment:** Option 1 - Orders and Settlements[cite: 2].
 - **Objective:** Build a production-ready, full-stack application that models B2B orders with line items, partial payments, derived statuses, and strict financial transaction integrity[cite: 2].
 - **Evaluation Core:** Business rules accuracy (over-payment prevention), REST API design, concurrent transaction safety, and UI dashboard clarity[cite: 2].
 
