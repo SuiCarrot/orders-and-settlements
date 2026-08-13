@@ -20,10 +20,90 @@ Two strings are required because Neon's pooler runs PgBouncer in transaction mod
 execute the DDL that migrations need. Application queries want the pooler; migrations want a
 direct connection.
 
-Also create a second Neon **branch** named `test` and save its direct URL as `TEST_DATABASE_URL`.
-Integration tests in [06-payments-api.md](06-payments-api.md) run against it, so they can truncate
-tables without touching development data. Branching is instant and free on Neon, which is the main
-reason it was picked over a local Docker Postgres: the test database is identical to production.
+Integration tests in [06-payments-api.md](06-payments-api.md) need a database they can freely
+truncate. A separate Neon **branch** is the ideal isolation — instant, free, and identical to
+production — and is worth using if you have console or API access to create one. This build did
+not, so it uses the pragmatic fallback instead: a second Postgres **schema**
+(`test_isolation`) inside the *same* Neon database, which needs nothing beyond the connection
+string already in hand.
+
+Add two more variables to `.env`, pointing at the same database with a `schema` query parameter —
+this is Prisma's own convention for selecting a non-public schema, not a raw libpq option:
+
+```ini
+TEST_DATABASE_URL="postgresql://...-pooler.../neondb?sslmode=require&schema=test_isolation"
+TEST_DIRECT_URL="postgresql://.../neondb?sslmode=require&schema=test_isolation"
+```
+
+Then create the schema itself. Since this touches a real database, it is done through a script
+that reads the connection string from `.env` rather than a one-liner with the URL typed inline —
+partly good hygiene, partly so the credential never appears in shell history:
+
+`scripts/setup-test-schema.ts`:
+
+```ts
+import "dotenv/config";
+import { PrismaClient } from "@/generated/prisma";
+import { PrismaNeon } from "@prisma/adapter-neon";
+
+async function main() {
+  const connectionString = process.env.TEST_DIRECT_URL;
+  if (!connectionString) throw new Error("TEST_DIRECT_URL is not set. Check your .env file.");
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaNeon({ connectionString }),
+  });
+  await prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS test_isolation`);
+  await prisma.$disconnect();
+}
+
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+```
+
+```bash
+npx tsx scripts/setup-test-schema.ts
+```
+
+Migrations are then applied to that schema with a second, minimal Prisma config that points only
+at `TEST_DIRECT_URL`:
+
+`prisma.test.config.ts`:
+
+```ts
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  datasource: { url: env("TEST_DIRECT_URL") },
+});
+```
+
+```bash
+npx prisma migrate deploy --config prisma.test.config.ts
+```
+
+**A gotcha worth naming.** The first attempt at this used a raw `?options=-c search_path=...`
+query parameter instead of `?schema=`. Prisma's CLI silently ignored it, connected to `public`
+regardless, and failed with a confusing `Invariant violation: migration persistence is not
+initialized` because `public` already had a migration history that didn't match what the engine
+expected for what it thought was a fresh schema. `?schema=` is the parameter Prisma's connector
+actually understands, and the log line's `schema "test_isolation"` on a successful run is the
+confirmation it worked.
+
+**A second gotcha.** `?schema=` on the connection string is honoured by the Prisma CLI (schema
+engine) but **not** by the `PrismaNeon` runtime adapter used in application code. The adapter needs
+the schema as an explicit constructor option instead: `new PrismaNeon({ connectionString }, {
+schema: "test_isolation" })`. Two different code paths, two different conventions for the same
+concept — [06-payments-api.md](06-payments-api.md) applies this when building the integration test
+client.
+
+If you do have Neon console access, prefer a real branch: replace `TEST_DATABASE_URL` /
+`TEST_DIRECT_URL` with the branch's own pooled and direct strings, skip the schema dance entirely,
+and everything downstream — the truncation logic, the test client — stays the same.
 
 ## Step 2 — Install and initialise Prisma
 
