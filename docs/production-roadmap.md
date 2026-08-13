@@ -62,10 +62,10 @@ The section a fintech reviewer will read closest.
   `(user_id, key)`, returning the original response on replay. Without it, the row lock prevents
   overpayment but not double-recording of a legitimate remainder.
 
-- **Immutable payments with compensating entries.** *(scope decision)* Payments cannot currently be
-  corrected at all. The answer is never `UPDATE` or `DELETE` — it is a reversal entry that nets to
-  zero, leaving both the mistake and its correction visible. The refund design in
-  [implementation/13-extras.md](implementation/13-extras.md) is the sketch.
+- **Immutable payments with compensating entries.** Refunds are a separate `Refund` row, never a
+  negative payment. They lock the same order row as payments, decrement `paidCents`, and reverse
+  derived status naturally (`paid` → `partially_paid` / `overdue` / `pending`). A mistaken refund
+  is corrected by a new payment — refund rows are never updated or deleted.
 
 - **A double-entry ledger instead of a denormalised `paidCents`.** *(scope decision)* The current
   design is a cached aggregate protected by a lock and a CHECK constraint. A ledger of immutable
@@ -76,9 +76,9 @@ The section a fintech reviewer will read closest.
   scale.
 
 - **Reconciliation job.** *(known gap)* Until the ledger exists, a scheduled check that
-  `SUM(payments.amount_cents) = orders.paid_cents` for every order, alerting on any mismatch. A
-  Vercel cron hitting a route that runs the query and pages on Slack is cheap insurance for a
-  denormalised total.
+  `SUM(payments.amount_cents) - SUM(refunds.amount_cents) = orders.paid_cents` for every order,
+  alerting on any mismatch. A Vercel cron hitting a route that runs the query and pages on Slack
+  is cheap insurance for a denormalised total.
 
 - **Multi-currency.** *(scope decision)* Every amount assumes one implicit currency. Real support
   means storing an ISO code alongside every amount, forbidding arithmetic across currencies at the

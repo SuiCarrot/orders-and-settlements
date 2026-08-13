@@ -9,6 +9,7 @@ const LABELS: Record<string, string> = {
   "order.created": "Order created",
   "order.updated": "Order updated",
   "payment.recorded": "Payment recorded",
+  "refund.recorded": "Refund recorded",
 };
 
 export function AuditTimeline({ events }: { events: NonNullable<SerialisedOrder["events"]> }) {

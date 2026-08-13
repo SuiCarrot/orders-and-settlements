@@ -37,7 +37,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         total={order.orderTotal}
         isLocked={(order.payments ?? []).length > 0}
       />
-      <PaymentHistory payments={order.payments ?? []} orderTotal={order.orderTotal} />
+      <PaymentHistory order={order} />
       <AuditTimeline events={order.events ?? []} />
     </main>
   );

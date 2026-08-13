@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { UnauthenticatedError } from "@/server/auth/require-user";
 import { OverpaymentError } from "@/server/domain/payment-rules";
+import { ExcessRefundError } from "@/server/domain/refund-rules";
 import { InvalidMoneyError } from "@/server/domain/money";
 
 export class NotFoundError extends Error {
@@ -39,7 +40,7 @@ export function toErrorResponse(error: unknown): NextResponse {
   if (error instanceof InvalidMoneyError) {
     return NextResponse.json(body("VALIDATION_ERROR", error.message), { status: 400 });
   }
-  if (error instanceof OverpaymentError) {
+  if (error instanceof OverpaymentError || error instanceof ExcessRefundError) {
     return NextResponse.json(body(error.code, error.message, error.details), { status: 409 });
   }
   if (error instanceof ConflictError) {

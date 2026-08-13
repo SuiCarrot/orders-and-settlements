@@ -23,9 +23,10 @@ model Order {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   items    OrderItem[]
   payments Payment[]
+  refunds  Refund[]
   events   OrderEvent[]
 
   @@index([userId, dueDate])
@@ -55,10 +56,28 @@ model Payment {
   note        String?
   createdAt   DateTime @default(now()) @map("created_at")
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
 
   @@index([orderId, paidAt])
   @@map("payments")
+}
+
+model Refund {
+  id          String   @id @default(cuid())
+  paymentId   String   @map("payment_id")
+  orderId     String   @map("order_id")
+  amountCents Int      @map("amount_cents")
+  reason      String
+  refundedAt  DateTime @map("refunded_at") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([paymentId])
+  @@map("refunds")
 }
 
 model OrderEvent {

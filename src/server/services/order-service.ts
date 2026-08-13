@@ -10,14 +10,20 @@ import type { CreateOrderInput, ExportOrdersQuery, ListOrdersQuery, UpdateOrderI
 export const orderListInclude = {
   include: {
     items: true,
-    payments: { orderBy: { paidAt: "desc" as const } },
+    payments: {
+      orderBy: { paidAt: "desc" as const },
+      include: { refunds: { orderBy: { createdAt: "asc" as const } } },
+    },
   },
 } satisfies Prisma.OrderDefaultArgs;
 
 export const orderWithRelations = {
   include: {
     items: true,
-    payments: { orderBy: { paidAt: "desc" as const } },
+    payments: {
+      orderBy: { paidAt: "desc" as const },
+      include: { refunds: { orderBy: { createdAt: "asc" as const } } },
+    },
     events: { orderBy: { createdAt: "asc" as const } },
   },
 } satisfies Prisma.OrderDefaultArgs;
@@ -210,7 +216,7 @@ export async function updateOrder(
 export async function deleteOrder(userId: string, orderId: string): Promise<void> {
   const order = await getOrder(userId, orderId);
 
-  if (order.paidCents > 0) {
+  if (order.payments.length > 0) {
     throw new ConflictError(
       "An order with recorded payments cannot be deleted.",
       "ORDER_HAS_PAYMENTS",

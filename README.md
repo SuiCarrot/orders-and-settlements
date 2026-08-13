@@ -46,11 +46,13 @@ Integration tests share the Neon project under a dedicated `test_isolation` sche
 | `POST` | `/api/auth/sign-in/email` | Sign in |
 | `POST` | `/api/auth/sign-out` | Sign out |
 | `GET` | `/api/orders` | List (filter by `status`, paginate with `page` / `perPage`) |
+| `GET` | `/api/orders/export` | CSV download (`from`, `to`, optional `status`; max 366 days) |
 | `POST` | `/api/orders` | Create with line items |
-| `GET` | `/api/orders/:id` | Detail with items and payments |
+| `GET` | `/api/orders/:id` | Detail with items, payments, refunds and activity |
 | `PATCH` | `/api/orders/:id` | Update (line items lock after first payment) |
 | `DELETE` | `/api/orders/:id` | Delete (rejected once any payment exists) |
 | `POST` | `/api/orders/:id/payments` | Record a payment |
+| `POST` | `/api/orders/:id/payments/:paymentId/refunds` | Record a refund against a payment |
 
 Conventions:
 
@@ -184,6 +186,16 @@ A misspelled customer name or a renegotiated due date do not have that property.
 
 ---
 
+## Stretch goals
+
+Shipped after the scored core:
+
+- **Audit log.** `order_events` written inside the same transaction as the change they describe. Status in the log is derived with the same function the UI uses. Seeded demo orders created before this shipped have no historical events; new activity is logged.
+- **CSV export.** Dashboard control and `GET /api/orders/export?from=&to=&status=`. Same filters as the list endpoint. Fields are RFC 4180-quoted; values starting with `=`, `+`, `-` or `@` are prefixed to prevent spreadsheet formula injection. Range is capped at 366 days.
+- **Refunds.** A separate `Refund` row referencing the payment it reverses — never a negative payment. The same `SELECT … FOR UPDATE` serialises a refund racing a payment. `paidCents` is decremented, so derived status flows backwards (`paid` → `partially_paid` / `overdue` / `pending`) without a new status.
+
+---
+
 ## Assumptions and trade-offs
 
 - **Single implicit currency.** Every amount is in the same one. No currency code is stored.
@@ -193,7 +205,7 @@ A misspelled customer name or a renegotiated due date do not have that property.
 - **Authentication delegated to Better Auth** (scrypt, revocable sessions). Hand-rolled bcrypt+JWT was considered and rejected: the version worth defending in a fintech review is days of work in an area the assignment excluded from scoring.
 - **`proxy.ts` is not a security boundary.** It only checks that a cookie *exists*, so a logged-out visitor is redirected without a flash of empty UI. Authorization is `requireUser()` plus `userId` on every query. Next.js middleware can be bypassed (CVE-2025-29927); treating it as auth would be the mistake a reviewer looks for.
 - **Offset pagination** on the API; the dashboard filters the loaded list in the browser so status tabs do not round-trip to Neon.
-- **Payments are append-only.** There is no correction or refund path yet.
+- **Payments are append-only.** A mistake is a `Refund` row that decrements `paidCents`, not an `UPDATE` or `DELETE` on the payment. Derived status flows backwards for free.
 
 ---
 
@@ -204,9 +216,11 @@ The three areas the assignment names:
 | Area | Where |
 |------|--------|
 | Line-item math / money | `tests/unit/money.test.ts`, `tests/unit/totals.test.ts` |
-| Status transitions | `tests/unit/status.test.ts` (full matrix, including paid-after-due) |
+| Status transitions | `tests/unit/status.test.ts` (full matrix, including paid-after-due and refund reversals) |
 | Overpayment rejection | `tests/unit/payment-rules.test.ts` |
-| Concurrent overpayment | `tests/integration/payments.test.ts` |
+| Refund ceiling | `tests/unit/refund-rules.test.ts` |
+| Concurrent overpayment / refund | `tests/integration/payments.test.ts`, `tests/integration/refunds.test.ts` |
+| CSV quoting / injection | `tests/unit/csv.test.ts` |
 
 The assignment scenario (2 × $500 → $400 → $600 → reject $1) is also an HTTP script: `npm run verify:scenario`. Point it at production with `BASE_URL=https://orders-and-settlements-tau.vercel.app`.
 

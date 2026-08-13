@@ -138,6 +138,20 @@ rule, and the README documents it:
 - **`paidCents > totalCents` is unrepresentable.** The database constraint makes it impossible, so
   `>=` in the first branch is defensive rather than meaningful.
 
+### Reverse transitions (refunds)
+
+`deriveStatus` has no refund-specific branch. Decreasing `paidCents` is enough, because status is
+derived from the current snapshot. The cases a refund must produce, using the same `now` of
+2026-08-13:
+
+| before (paid) | after (paid) | due date | expected |
+|---------------|--------------|----------|----------|
+| 1000 | 400 | future | `paid` → `partially_paid` |
+| 1000 | 0 | future | `paid` → `pending` |
+| 1000 | 400 | past | `paid` → `overdue` |
+
+Covered in `tests/unit/status.test.ts` under "status after a refund reduces paidCents".
+
 ## Step 4 — Overpayment rule
 
 Kept in the domain layer so the same function guards the API, the service, and the tests.

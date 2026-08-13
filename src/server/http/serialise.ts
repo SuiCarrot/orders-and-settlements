@@ -1,4 +1,4 @@
-import type { Order, OrderEvent, OrderItem, Payment } from "@/generated/prisma";
+import type { Order, OrderEvent, OrderItem, Payment, Refund } from "@/generated/prisma";
 import { amountDueCents, deriveStatus } from "@/server/domain/status";
 import { formatCents } from "@/server/domain/money";
 import type { OrderWithRelations } from "@/server/services/order-service";
@@ -13,13 +13,28 @@ export function serialiseItem(item: OrderItem) {
   };
 }
 
-export function serialisePayment(payment: Payment) {
+export function serialiseRefund(refund: Refund) {
+  return {
+    id: refund.id,
+    paymentId: refund.paymentId,
+    amount: formatCents(refund.amountCents),
+    reason: refund.reason,
+    refundedAt: refund.refundedAt.toISOString().slice(0, 10),
+    createdAt: refund.createdAt.toISOString(),
+  };
+}
+
+export function serialisePayment(payment: Payment & { refunds?: Refund[] }) {
+  const refunds = payment.refunds ?? [];
+  const refundedCents = refunds.reduce((sum, refund) => sum + refund.amountCents, 0);
   return {
     id: payment.id,
     amount: formatCents(payment.amountCents),
     paidAt: payment.paidAt.toISOString().slice(0, 10),
     note: payment.note,
     createdAt: payment.createdAt.toISOString(),
+    refunds: refunds.map(serialiseRefund),
+    refundableAmount: formatCents(Math.max(0, payment.amountCents - refundedCents)),
   };
 }
 
@@ -36,7 +51,7 @@ export function serialiseEvent(event: OrderEvent) {
 
 type SerialisableOrder = Pick<Order, "id" | "customer" | "dueDate" | "totalCents" | "paidCents" | "createdAt"> & {
   items: OrderItem[];
-  payments?: Payment[];
+  payments?: Array<Payment & { refunds?: Refund[] }>;
   events?: OrderEvent[];
 };
 

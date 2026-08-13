@@ -1,6 +1,10 @@
 import { deriveStatus, type OrderStatus } from "./status";
 
-export type OrderEventType = "order.created" | "order.updated" | "payment.recorded";
+export type OrderEventType =
+  | "order.created"
+  | "order.updated"
+  | "payment.recorded"
+  | "refund.recorded";
 
 interface StatusSnapshot {
   totalCents: number;

@@ -46,6 +46,18 @@ export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 export const paymentFormSchema = createPaymentSchema;
 export type PaymentFormValues = CreatePaymentInput;
 
+export const createRefundSchema = z.object({
+  amount: z
+    .string()
+    .regex(/^\d{1,13}(\.\d{1,2})?$/, 'Use a decimal amount, e.g. "400.00".')
+    .refine((v) => parseMoneyToCents(v) >= 1, "Refund must be at least $0.01."),
+  date: z.iso.date(),
+  reason: z.string().trim().min(1, "A reason is required.").max(500),
+});
+
+export type CreateRefundInput = z.infer<typeof createRefundSchema>;
+export const refundFormSchema = createRefundSchema;
+
 export type LineItemValues = z.infer<typeof lineItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
