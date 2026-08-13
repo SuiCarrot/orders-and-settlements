@@ -16,7 +16,7 @@ describe("lineTotalCents", () => {
 });
 
 describe("orderTotalCents", () => {
-  it("matches the assignment's own scenario: two units at $500 = $1,000", () => {
+  it("matches the core scenario: two units at $500 = $1,000", () => {
     expect(
       orderTotalCents([{ description: "Widget", quantity: 2, unitPriceCents: 50_000 }]),
     ).toBe(100_000);

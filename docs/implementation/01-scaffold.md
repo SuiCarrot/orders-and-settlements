@@ -57,7 +57,7 @@ npx shadcn@latest add button input label card table badge dialog select field so
 ```
 
 `shadcn` copies component source into `src/components/ui/` instead of adding a dependency, which
-means the UI layer stays fully readable to a reviewer.
+keeps the UI layer fully readable and editable in place.
 
 **`form` is not in that list.** shadcn deprecated the RHF-coupled `Form` wrapper in October 2025 in
 favour of the form-library-agnostic `Field` family (`Field`, `FieldGroup`, `FieldLabel`,
@@ -119,8 +119,7 @@ tests/
 
 The one rule that matters here: **`src/server/domain/` may not import from anywhere else.** No
 Prisma, no Next, no auth. That constraint is what makes the money and status logic testable
-without a database, and it is the first thing a reviewer looking for "separation of concerns"
-will check.
+without a database, and it is the clearest signal of separation of concerns in the codebase.
 
 ## Step 6 — Scripts and environment
 

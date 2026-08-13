@@ -1,9 +1,9 @@
 # Phase 13 — Stretch goals
 
-**Goal.** The optional features from the assignment, in the order that adds most value per hour.
+**Goal.** The optional stretch features, in the order that adds most value per hour.
 
 **Rule.** None of these start until phases 1–12 are complete and committed. A polished core with no
-stretch goals scores better than a half-finished audit log attached to a shaky payment path.
+stretch goals beats a half-finished audit log attached to a shaky payment path.
 
 Order: audit log, then CSV export, then refunds. If time runs out, say in the README which ones
 were skipped and why — a deliberate omission reads very differently from an unfinished feature.
@@ -12,8 +12,8 @@ were skipped and why — a deliberate omission reads very differently from an un
 
 ## 13.1 — Audit log
 
-**Why first.** It reinforces exactly what the assignment grades: transactional writes and status
-transitions. It is also the smallest of the three.
+**Why first.** It reinforces the two things that matter most in this system: transactional writes
+and status transitions. It is also the smallest of the three.
 
 ### Model
 

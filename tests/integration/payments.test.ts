@@ -20,7 +20,7 @@ function makeOrder(userId = TEST_USER_ID) {
 }
 
 describe("recordPayment", () => {
-  it("follows the assignment scenario end to end", async () => {
+  it("follows the core payment scenario end to end", async () => {
     const order = await makeOrder();
     expect(order.totalCents).toBe(100_000);
 

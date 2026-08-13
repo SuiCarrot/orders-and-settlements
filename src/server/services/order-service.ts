@@ -89,8 +89,8 @@ export async function getOrder(userId: string, orderId: string): Promise<OrderWi
 /**
  * SQL equivalent of each branch of `deriveStatus` (see src/server/domain/status.ts). Status is
  * not a column, so it cannot be filtered directly — this must stay in sync with that function by
- * hand. The seed script (phase 9) creates one order per status and the integration suite asserts
- * these clauses partition the full set (every order matches exactly one filter).
+ * hand. Nothing yet proves the two agree — the partition test (every order matches exactly one
+ * filter) is a known gap, see docs/production-roadmap.md.
  */
 export function orderStatusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
   switch (status) {

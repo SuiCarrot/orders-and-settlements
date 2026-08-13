@@ -1,6 +1,6 @@
 # Phase 12 — Root README
 
-**Goal.** The document the reviewer reads first, and possibly the only one they read in full.
+**Goal.** The document most people will read first, and possibly the only one they read in full.
 
 **Definition of done.** Someone who has never seen the repository can go from clone to running app
 by following it literally, and can answer "how does status work" and "what happens on concurrent
@@ -8,9 +8,9 @@ payments" without opening a source file.
 
 ---
 
-## What the assignment asks for
+## What the README needs to cover
 
-The deliverables list is explicit, and the README is graded on it. Cover all of it:
+The deliverables list is explicit. Cover all of it:
 
 - Prerequisites and step-by-step setup
 - API overview with the main endpoints
@@ -19,14 +19,14 @@ The deliverables list is explicit, and the README is graded on it. Cover all of 
 - What you would improve before production
 - The deployed URL
 
-Communication is a scored criterion. Structure, precision and honesty about limitations count.
+Structure, precision and honesty about limitations count.
 
 ## Structure
 
 ### Header
 
 Project name, one sentence describing what it does, and immediately: **the live URL and the demo
-credentials.** Nothing above them. A reviewer with fifteen minutes should be one click from a
+credentials.** Nothing above them. Someone with fifteen minutes should be one click from a
 working app.
 
 A short row of badges for the stack — Next.js 16, Postgres, Prisma 7, Better Auth — orients a
@@ -66,9 +66,8 @@ Document the conventions in a short list: money crosses the wire as a decimal st
 
 ### Status derivation
 
-The precedence rules as a numbered list, then the edge cases as prose. This section answers the
-assignment's explicit request to document cases like an order that was overdue and is now fully
-paid. Cover:
+The precedence rules as a numbered list, then the edge cases as prose. This section documents
+cases like an order that was overdue and is now fully paid. Cover:
 
 - `paid` takes precedence over `overdue`, and why status answers "what needs my attention".
 - `overdue` takes precedence over `pending` and `partially_paid`.
@@ -78,7 +77,8 @@ paid. Cover:
 
 ### Concurrency
 
-Short, concrete, and near the top — this is what the assignment singles out. Describe the failure
+Short, concrete, and near the top — this is the single most important guarantee in the system.
+Describe the failure
 mode in one sentence, the `SELECT ... FOR UPDATE` solution in two, name the CHECK constraint as the
 final guarantee, and list the alternatives considered with the reason each was rejected. The
 sequence diagram from [06-payments-api.md](06-payments-api.md) carries this better than prose.
@@ -87,7 +87,7 @@ Say explicitly that it is proven by an automated test, and name the file.
 
 ### Editability after payment
 
-The assignment asks for this decision either way. State the rule — line items lock after the first
+This decision needs to be stated either way. State the rule — line items lock after the first
 payment, `customer` and `dueDate` stay editable, deletion is blocked — then the reasoning:
 `totalCents` is the ceiling every recorded payment was validated against, so it becomes history
 once money has moved, while metadata corrections do not carry that risk.
@@ -109,7 +109,7 @@ The section that shows judgement. Each entry is one or two sentences.
 
 ### Testing
 
-What is covered and what deliberately is not. Name the three areas the assignment mentions —
+What is covered and what deliberately is not. Name the three areas that matter most —
 payment allocation, status transitions, overpayment rejection — and point at the files. Mention
 that the concurrency guarantee is tested against a real Postgres branch, because it cannot be
 demonstrated any other way.
@@ -127,8 +127,8 @@ imports nothing from infrastructure, which is what makes the business rules test
 ## Tone
 
 Plain, specific, no marketing. Prefer "payments are append-only; corrections require a new order"
-over "robust payment handling". Where something is incomplete, say so and say why — a reviewer
-trusts a document that admits its gaps far more than one that does not appear to have any.
+over "robust payment handling". Where something is incomplete, say so and say why — a document
+that admits its gaps is more trustworthy than one that does not appear to have any.
 
 ## Commit
 

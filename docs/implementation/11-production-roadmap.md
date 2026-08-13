@@ -10,9 +10,9 @@ described as a decision with a reason rather than as an omission.
 
 ## Why this document exists
 
-The assignment asks the README to cover "what you would improve before production", and lists
-communication as an explicit evaluation criterion. A reviewer cannot tell the difference between a
-gap you did not see and a gap you chose to leave — unless you write it down.
+The README should cover "what you would improve before production", honestly. There is no way to
+tell the difference between a gap that was not seen and a gap that was chosen — unless it is
+written down.
 
 Splitting it out of the README keeps the README focused on running and understanding the app, and
 gives this content room to be specific. The README carries a three-paragraph summary and links
@@ -60,7 +60,7 @@ integrity.
 
 ### 3. Financial integrity
 
-The most important section, and the one a fintech reviewer will read closest.
+The most important section — the one with the highest cost if something here is wrong.
 
 - **Idempotency on payment recording.** As described above. The single highest-value addition to
   the current API.
@@ -70,15 +70,15 @@ The most important section, and the one a fintech reviewer will read closest.
 - **A double-entry ledger instead of a denormalised `paidCents`.** The current design is a cached
   aggregate protected by a lock and a CHECK constraint. A ledger of immutable entries, with balance
   derived by summing them, makes drift structurally impossible and gives an audit trail for free.
-  Explain why it was not done now: it is the right model, and it is more machinery than a six-hour
-  exercise justifies.
+  Explain why it was not done now: it is the right model, and it is more machinery than the
+  current scope justifies.
 - **Reconciliation job.** Until the ledger exists, a scheduled check that
   `SUM(payments.amount_cents) = orders.paid_cents` for every order, alerting on any mismatch. Cheap
   insurance for a denormalised total.
 - **Multi-currency.** Every amount currently assumes one implicit currency. Real support means
   storing a currency code alongside every amount, forbidding arithmetic across currencies at the
   type level, and deciding how exchange rates are captured at payment time.
-- **Rounding and tax.** Order total equals subtotal by assignment. Introducing percentage discounts
+- **Rounding and tax.** Order total equals subtotal in the current model. Introducing percentage discounts
   or tax raises the rounding question — half-up per line or on the total — which must be a stated
   policy, not an accident of implementation.
 
@@ -99,7 +99,7 @@ The most important section, and the one a fintech reviewer will read closest.
 - **Error tracking and structured logging** — Sentry, request ids threaded through every log line,
   and no monetary values or personal data in log output.
 - **Health check and uptime monitoring.**
-- **End-to-end tests** with Playwright covering the assignment scenario, run against preview
+- **End-to-end tests** with Playwright covering the core scenario, run against preview
   deployments so a regression in the payment flow blocks the merge.
 
 ### 6. Product

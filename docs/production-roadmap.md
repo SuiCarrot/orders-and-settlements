@@ -7,8 +7,8 @@ actionable `409 OVERPAYMENT`) was treated as non-negotiable. Everything else was
 short exercise.
 
 The principle behind the trade-offs: **correctness of the money path first, everything else
-second.** A reviewer at a financial company can tell the difference between a gap we did not see
-and a gap we chose to leave. This document is the latter.
+second.** There is a real difference between a gap that was not seen and a gap that was chosen
+deliberately. This document is the latter, itemised.
 
 Each item answers three questions: what is missing, why it matters, and how it would be
 implemented. Items marked **scope decision** were considered during the build and deliberately
@@ -30,7 +30,7 @@ were better spent on transactional integrity.
   backoff after N failures and a lockout window that is itself rate-limited to prevent lockout
   DoS. Better Auth's rate-limit plugin plus a small `login_attempts` model is enough.
 
-- **Email verification and password reset.** *(scope decision)* Out of scope for the assignment.
+- **Email verification and password reset.** *(scope decision)* Not part of this build.
   Production needs single-use, expiring, hashed-at-rest tokens plus a transactional email provider
   (Resend, Postmark). Resetting a password must revoke every other session for that user — Better
   Auth already stores sessions as rows, so this is a `deleteMany` on `session` inside the same
@@ -54,8 +54,6 @@ were better spent on transactional integrity.
 
 ## Financial integrity
 
-The section a fintech reviewer will read closest.
-
 - **Idempotency on payment recording.** *(scope decision, highest-value addition)* A client that
   retries after a timeout can record the same payment twice, and both writes are legitimately
   within the total. The fix is an `Idempotency-Key` header stored with a unique constraint
@@ -70,10 +68,9 @@ The section a fintech reviewer will read closest.
 - **A double-entry ledger instead of a denormalised `paidCents`.** *(scope decision)* The current
   design is a cached aggregate protected by a lock and a CHECK constraint. A ledger of immutable
   entries, with balance derived by summing them, makes drift structurally impossible and gives an
-  audit trail for free. It is the right model, and it is more machinery than this exercise
+  audit trail for free. It is the right model, and it is more machinery than the current scale
   justifies: every read of "amount due" becomes a sum, filtering by status needs a `HAVING` or a
-  maintained view, and the assignment's dashboard would get slower for no visible benefit at this
-  scale.
+  maintained view, and the dashboard would get slower for no visible benefit at this scale.
 
 - **Reconciliation job.** *(known gap)* Until the ledger exists, a scheduled check that
   `SUM(payments.amount_cents) - SUM(refunds.amount_cents) = orders.paid_cents` for every order,
@@ -85,7 +82,7 @@ The section a fintech reviewer will read closest.
   type level (`Cents<"USD">`), and capturing the exchange rate at payment time rather than at
   display time.
 
-- **Rounding and tax.** *(scope decision)* Order total equals subtotal by assignment. Introducing
+- **Rounding and tax.** *(scope decision)* Order total equals subtotal in the current model. Introducing
   percentage discounts or tax raises the rounding question — half-up per line, or on the total —
   which must be a stated policy, not an accident of `Math.round`.
 
@@ -95,9 +92,9 @@ The section a fintech reviewer will read closest.
 
 - **Lock behaviour under contention.** *(known gap)* `SELECT ... FOR UPDATE` is correct, but a stuck
   transaction can queue every subsequent payment on that order. Set `lock_timeout` (for example
-  `3s`) inside the transaction so a waiter fails fast with a retryable `409` rather than hanging
-  the serverless function. Multi-region would make this worse: the lock is per-primary, and a
-  replica cannot take it.
+  `3s`) inside the transaction so a waiter fails fast with a retryable `409` rather than sitting on
+  a pooled connection until the transaction timeout fires. Multi-region would make this worse: the
+  lock is per-primary, and a replica cannot take it.
 
 - **Cursor pagination.** *(scope decision)* Offset `skip`/`take` degrades and can skip rows when
   data changes between pages. Keyset pagination on `(created_at, id)` is the replacement. Adequate
@@ -112,6 +109,69 @@ The section a fintech reviewer will read closest.
   history. `deleted_at` plus a default `WHERE deleted_at IS NULL` keeps the row for audit and
   still hides it from the dashboard.
 
+- **The SQL mirror of `deriveStatus`.** *(known gap)* `orderStatusWhere` re-expresses every branch
+  of the status function as a Prisma `where` clause, and the two are kept in sync by hand — adding
+  `refunded` meant editing both, plus the summary aggregates that must exclude fully refunded
+  orders. Nothing proves they agree. The cheap fix is a partition test: seed one order per status,
+  then assert the filters' counts sum to the total and that no order matches two of them. The
+  structural fix is removing the duplication with a generated column maintained by the database.
+  The seed also has no refunded fixture, so that branch is absent from the demo dashboard.
+
+---
+
+## Capacity and scaling
+
+The deployed instance runs on Neon's free plan and Vercel's Hobby plan. The figures below come from
+platform limits and query shapes, not from a load test — replacing estimates with measurements is
+the first item in this section for a reason.
+
+- **A load test before any capacity number is quoted.** *(known gap)* k6 or Artillery against a
+  preview deployment, in three profiles: read-heavy dashboard traffic, writes spread across
+  distinct orders, and writes contending on one order. The third is the only one that exercises
+  the row lock. Until that exists, every throughput number in this document is an estimate.
+
+- **Compute, not storage, is the free-tier ceiling.** *(scope decision)* Neon's free plan allows
+  100 CU-hours per project per month and 0.5 GB of storage, with scale-to-zero after five minutes
+  that cannot be disabled. At the smallest 0.25 CU that is roughly 400 hours of active compute, so
+  an app in continuous use exhausts the month's compute long before its storage. Storage is spent
+  on orders, items, payments and events — on the order of 2–3 KB per order with indexes, so
+  roughly 150k orders — not on accounts, where a user with a session and a credential row is well
+  under a kilobyte. The first paid step is Neon's Launch plan with an autoscaling floor above
+  zero, which also removes the cold start on the first request after an idle period.
+
+- **Connection budget under transaction pinning.** *(known gap)* The app already connects through
+  Neon's built-in PgBouncer (the `-pooler` hostname), so pooling is not the missing piece. What
+  matters is that transaction-mode pooling pins a server connection for the whole transaction, and
+  `recordPayment` holds one from the `SELECT … FOR UPDATE` through the event insert and the final
+  re-read. Pool size is about 90% of `max_connections`, which scales with compute size (roughly
+  112 at 0.25 CU). Scaling means shortening the transaction — the trailing re-read can be dropped
+  in favour of the row the `UPDATE` already returns — setting `statement_timeout` so nothing pins
+  a slot indefinitely, and raising the autoscaling floor.
+
+- **The transaction timeout binds before the function timeout.** *(known gap)* Vercel functions on
+  fluid compute default to 300 seconds, so the platform is not what kills a queued payment. The
+  interactive transaction is capped at `timeout: 10_000` with the default 2s `maxWait`, so a
+  request waiting on the row lock fails with Prisma's `P2028` first, and that currently surfaces
+  as a `500`. It should map to a retryable `409`/`503` with `Retry-After`, together with the
+  `lock_timeout` item above.
+
+- **A session read on every protected request.** *(known gap)* `requireUser()` calls Better Auth's
+  `getSession`, which reads the `session` table; React's `cache()` only deduplicates within a
+  single render, so each API route and each page render pays a round trip before its first
+  business query. Better Auth's `session.cookieCache` puts signed session data in the cookie with
+  a short TTL and removes most of those reads with no new infrastructure. The trade-off is
+  revocation lag bounded by the TTL — 60s is defensible here, and sign-out clears the cookie
+  immediately. Redis through `secondaryStorage` is the step after that, and only if instant
+  revocation without a database read becomes a requirement.
+
+- **Asynchronous payment processing.** *(scope decision)* A queue in front of payment recording
+  (QStash, or Redis with BullMQ) would absorb a burst against a single hot order. Deferred
+  deliberately: the lock is per order row, so unrelated payments never queue behind each other,
+  and the realistic B2B pattern is a few payments per order over weeks. It also turns a
+  synchronous `201` carrying the updated order into an accepted-and-poll contract, which is a
+  product decision rather than an infrastructure one. Idempotency keys are a prerequisite for it,
+  not a detail of it.
+
 ---
 
 ## Operations
@@ -123,9 +183,10 @@ The section a fintech reviewer will read closest.
   migration files and a rehearsed rollback (`migrate resolve` + restore) belong in CI before any
   of that.
 
-- **Backups and point-in-time recovery.** *(known gap)* Neon PITR exists on paid plans. A restore
-  that has never been tested is not a restore. Schedule a quarterly restore into a throwaway
-  branch and run `npm run verify:scenario` against it.
+- **Backups and point-in-time recovery.** *(known gap)* Neon's free plan keeps a six-hour restore
+  window; a real retention period needs a paid plan. Either way, a restore that has never been
+  tested is not a restore. Schedule a quarterly restore into a throwaway branch and run
+  `npm run verify:scenario` against it.
 
 - **Error tracking and structured logging.** *(known gap)* Sentry for exceptions, a request id
   threaded through every log line, and a hard rule: no monetary values, emails or tokens in log
@@ -136,14 +197,14 @@ The section a fintech reviewer will read closest.
   (`SELECT 1`) and returns `503` if it cannot, plus an external check (Better Stack, Checkly)
   against `/login`.
 
-- **End-to-end tests on preview deployments.** *(known gap)* Playwright covering the assignment
+- **End-to-end tests on preview deployments.** *(known gap)* Playwright covering the core
   scenario (create → $400 → $600 → reject $1), run against Vercel preview URLs so a regression in
   the payment flow blocks the merge. `scripts/verify-scenario.ts` is the HTTP version of this;
   wiring it to preview deploys is the missing CI step.
 
 - **Preview database isolation.** *(scope decision)* Integration tests share the Neon project via
-  a `test_isolation` schema rather than a Neon branch, because this build did not have Neon API
-  access. Preview deployments currently share production data. Neon-managed Vercel integration
+  a `test_isolation` schema rather than a Neon branch, because provisioning did not go through
+  the Neon API. Preview deployments currently share production data. Neon-managed Vercel integration
   with per-preview branches is the production answer — it was skipped because it would have
   provisioned a *second* database and injected `DATABASE_URL_UNPOOLED` instead of the
   `DIRECT_URL` this repo's Prisma config expects.
@@ -153,7 +214,7 @@ The section a fintech reviewer will read closest.
 ## Product
 
 Multi-tenant organisations with roles (collections vs. finance vs. admin), due-date notifications,
-an accounting export (CSV is sketched in the extras doc), full order audit history in the UI, and
+an export in an accounting package's own format rather than the generic CSV that ships today, and
 attachments on payments for remittance advice. None of these change the invariant; they change who
 can see it and how they work a queue.
 
@@ -166,15 +227,21 @@ can see it and how they work a queue.
 | Idempotency-Key on payments | Scope decision | High | S | 1 |
 | Rate limiting / lockout on login | Known gap | High | S | 2 |
 | Reconciliation job on `paidCents` | Known gap | High | S | 3 |
-| Auth audit log | Known gap | Medium | S | 4 |
-| Compensating refunds | Scope decision | Medium | M | 5 |
-| Expand-and-contract migrations | Scope decision | Medium | M | 6 |
-| Playwright on preview deploys | Known gap | Medium | M | 7 |
+| `lock_timeout` + retryable lock error | Known gap | Medium | S | 4 |
+| Session cookie cache | Known gap | Medium | S | 5 |
+| Auth audit log | Known gap | Medium | S | 6 |
+| Status filter partition test | Known gap | Medium | S | 7 |
+| Expand-and-contract migrations | Scope decision | Medium | M | 8 |
+| Playwright on preview deploys | Known gap | Medium | M | 9 |
+| Load test against a preview deployment | Known gap | Medium | M | 10 |
 | Double-entry ledger | Scope decision | High | L | later |
 | MFA | Known gap | High | M | later |
 | Multi-currency | Scope decision | Medium | L | later |
+| Async payment queue | Scope decision | Low | L | later |
 | Cursor pagination | Scope decision | Low | S | later |
 
 The first three — **idempotency, rate limiting, reconciliation** — close the three ways this
-system can currently lose money or leak accounts without any new product surface. Everything after
-that is how you would operate it, not how you would trust it.
+system can currently lose money or leak accounts without any new product surface. The next two are
+the cheapest scaling work available: both are small, and each removes a way the system degrades
+under load rather than under attack. Everything after that is how you would operate it, not how
+you would trust it.

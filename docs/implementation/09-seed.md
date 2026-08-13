@@ -1,13 +1,13 @@
 # Phase 9 — Seed and scenario verification
 
-**Goal.** A one-command seed that gives a reviewer a populated dashboard on first login, and an
-executable check that the assignment's scenario behaves exactly as specified.
+**Goal.** A one-command seed that gives a populated dashboard on first login, and an
+executable check that the core payment scenario behaves exactly as specified.
 
 **Definition of done.** `npm run db:seed` produces a demo account with at least one order in each
-status. `npm run verify:scenario` runs the four steps from the assignment against a live server and
+status. `npm run verify:scenario` runs the four core steps against a live server and
 exits non-zero on any deviation.
 
-A reviewer with limited time will log in before reading any code. An empty dashboard wastes that
+Anyone evaluating the app will log in before reading any code. An empty dashboard wastes that
 first impression.
 
 ---
@@ -55,8 +55,8 @@ every order overdue by the time someone reviews it.
 
 The last two rows exist specifically to demonstrate the precedence decisions from
 [04-domain.md](04-domain.md): a partially paid order past its due date reads `overdue`, and an
-order settled after its due date reads `paid`. They are the edge cases the assignment asks to be
-documented, so the seed makes them clickable rather than hypothetical.
+order settled after its due date reads `paid`. They are edge cases worth documenting, so the seed
+makes them clickable rather than hypothetical.
 
 Note `$325.50 × 4 = $1,302.00`, which is exact in cents and would land on `1302.0000000000002` if
 computed in floats. A deliberate fixture for the precision decision.
@@ -84,7 +84,7 @@ creating impossible data — which has the useful side effect of making the seed
 
 ## Step 4 — Scenario verification script
 
-`scripts/verify-scenario.ts` runs the assignment's flow against a running server over HTTP, so it
+`scripts/verify-scenario.ts` runs the core payment flow against a running server over HTTP, so it
 tests the actual API contract, status codes and error bodies rather than the service layer.
 
 ```ts
@@ -128,5 +128,5 @@ deployment behaves identically.
 ## Step 5 — Commit
 
 ```bash
-git commit -am "feat: add seed data and assignment scenario verification script"
+git commit -am "feat: add seed data and scenario verification script"
 ```

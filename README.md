@@ -33,7 +33,7 @@ npm run dev
 ```bash
 npm test                  # unit tests — no database
 npm run test:integration  # concurrency test — needs TEST_DATABASE_URL
-npm run verify:scenario   # assignment scenario against a running server
+npm run verify:scenario   # core payment scenario against a running server
 ```
 
 Integration tests share the Neon project under a dedicated `test_isolation` schema so truncating tables cannot touch demo data. Create it once with `npx tsx scripts/setup-test-schema.ts`, then `npx prisma migrate deploy --config prisma.test.config.ts`.
@@ -132,7 +132,7 @@ The UI turns `maxAllowedAmount` into a "Use $600.00 instead" button. That is wha
 
 ## Status derivation
 
-Status is not a column. It is a pure function of `totalCents`, `paidCents`, `dueDate`, refunds and today (`src/server/domain/status.ts`). The assignment labels are not mutually exclusive — an order can be both partially paid and past due — so the branch order *is* the business rule:
+Status is not a column. It is a pure function of `totalCents`, `paidCents`, `dueDate`, refunds and today (`src/server/domain/status.ts`). The labels are not mutually exclusive — an order can be both partially paid and past due — so the branch order *is* the business rule:
 
 1. **`paid` wins over everything.** An order that was overdue and has since been settled shows as `paid`. Status answers "what do I need to do about this order"; a settled order needs nothing. The history of having been late is real information, but it belongs in an audit log, not in a field that drives a work queue.
 2. **`refunded` wins over `overdue`.** An order whose payments have all been reversed (`paidCents === 0` and at least one refund) is closed, even if the due date has passed. It is not a collections item. A never-paid order stays `pending` / `overdue`.
@@ -193,7 +193,7 @@ A misspelled customer name or a renegotiated due date do not have that property.
 
 ## Stretch goals
 
-Shipped after the scored core:
+Shipped after the core features:
 
 - **Audit log.** `order_events` written inside the same transaction as the change they describe. Status in the log is derived with the same function the UI uses. Seeded demo orders created before this shipped have no historical events; new activity is logged.
 - **CSV export.** Dashboard control and `GET /api/orders/export?from=&to=&status=`. Same filters as the list endpoint. Fields are RFC 4180-quoted; values starting with `=`, `+`, `-` or `@` are prefixed to prevent spreadsheet formula injection. Range is capped at 366 days.
@@ -208,8 +208,8 @@ Shipped after the scored core:
 - **Integer cents in the database, decimal strings on the wire.** IEEE-754 never enters the ledger. `"0.10" + "0.20"` is exactly `"0.30"`.
 - **Status derived on read**, so it cannot drift from the payments that produce it.
 - **`paidCents` denormalised onto the order** so it can be locked and indexed. The CHECK constraint plus a planned reconciliation job are the safety net; a full double-entry ledger is the longer-term model.
-- **Authentication delegated to Better Auth** (scrypt, revocable sessions). Hand-rolled bcrypt+JWT was considered and rejected: the version worth defending in a fintech review is days of work in an area the assignment excluded from scoring.
-- **`proxy.ts` is not a security boundary.** It only checks that a cookie *exists*, so a logged-out visitor is redirected without a flash of empty UI. Authorization is `requireUser()` plus `userId` on every query. Next.js middleware can be bypassed (CVE-2025-29927); treating it as auth would be the mistake a reviewer looks for.
+- **Authentication delegated to Better Auth** (scrypt, revocable sessions). Hand-rolled bcrypt+JWT was considered and rejected: a production-grade version — rate limiting, lockout, enumeration-safe responses, password reset, revocation, audit trail — is days of work in an area better served by an audited library.
+- **`proxy.ts` is not a security boundary.** It only checks that a cookie *exists*, so a logged-out visitor is redirected without a flash of empty UI. Authorization is `requireUser()` plus `userId` on every query. Next.js middleware can be bypassed (CVE-2025-29927); treating it as auth would be a real security mistake, not a cosmetic one.
 - **Offset pagination** on the API; the dashboard filters the loaded list in the browser so status tabs do not round-trip to Neon. Opening an order from that list reads the already-fetched payload from a tab-local cache (`sessionStorage`) instead of querying the order again.
 - **Payments are append-only.** A mistake is a `Refund` row that decrements `paidCents`, not an `UPDATE` or `DELETE` on the payment. Clearing the balance derives `refunded`; a mistaken refund is corrected by a new payment.
 
@@ -217,7 +217,7 @@ Shipped after the scored core:
 
 ## Testing
 
-The three areas the assignment names:
+The three areas that matter most:
 
 | Area | Where |
 |------|--------|
@@ -228,9 +228,9 @@ The three areas the assignment names:
 | Concurrent overpayment / refund | `tests/integration/payments.test.ts`, `tests/integration/refunds.test.ts` |
 | CSV quoting / injection | `tests/unit/csv.test.ts` |
 
-The assignment scenario (2 × $500 → $400 → $600 → reject $1) is also an HTTP script: `npm run verify:scenario`. Point it at production with `BASE_URL=https://orders-and-settlements-tau.vercel.app`.
+The core scenario (2 × $500 → $400 → $600 → reject $1) is also an HTTP script: `npm run verify:scenario`. Point it at production with `BASE_URL=https://orders-and-settlements-tau.vercel.app`.
 
-What is deliberately not covered: React component tests, Playwright, and load tests. The domain is where the grade is; the UI is a thin client of that domain.
+What is deliberately not covered: React component tests, Playwright, and load tests. Correctness lives in the domain layer; the UI is a thin client of that domain.
 
 ---
 

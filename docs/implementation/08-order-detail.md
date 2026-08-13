@@ -40,7 +40,7 @@ A plain table: description, quantity, unit price, line total, with the order tot
 
 Show the computed line total per row even though it equals quantity times unit price. This is the
 page where a user verifies the arithmetic, and making them do the multiplication in their head is
-the point of failure the assignment is testing with "line item math".
+exactly the kind of small friction that turns "line item math" from correct into unusable.
 
 When the order is locked because a payment exists, show a quiet note next to the heading:
 
@@ -237,8 +237,8 @@ generic red box:
 ```
 
 The structured `maxAllowedAmount` in the response becomes a button that fixes the problem. That is
-what the assignment means by an actionable error, and it is only possible because the API returns
-the number as data rather than embedding it in a sentence.
+what "actionable error" means here, and it is only possible because the API returns the number as
+data rather than embedding it in a sentence.
 
 Validation errors (`code === "VALIDATION_ERROR"`) map back onto their fields using the `fields`
 array from the response, so "Payment must be at least $0.01" appears under the amount input rather

@@ -6,8 +6,8 @@ migrations applied automatically on deploy.
 **Definition of done.** A stranger can open the URL, register an account, create an order, record a
 payment, and be rejected when overpaying. `BASE_URL=<live-url> npm run verify:scenario` passes.
 
-Deployment is a hard requirement of the assignment, not a bonus. It is worth doing early enough
-that a build failure is discovered with time to fix it, rather than at hour eight.
+Deployment is a hard requirement, not a bonus. It is worth doing early enough that a build failure
+is discovered with time to fix it, rather than at hour eight.
 
 ---
 
@@ -63,7 +63,7 @@ DATABASE_URL="postgresql://...-pooler.../neondb?sslmode=require&connect_timeout=
 
 `connect_timeout=15` matters on a free tier: Neon scales compute to zero after inactivity, and a
 cold start takes a few seconds. The default timeout produces an intermittent `P1001` on the first
-request after idle — precisely the request a reviewer makes when they open the link.
+request after idle — precisely the request the first visitor makes when they open the link.
 
 The interactive transaction from [06-payments-api.md](06-payments-api.md) works through PgBouncer's
 transaction mode because `@prisma/adapter-neon` holds a WebSocket connection for the duration of
@@ -76,8 +76,8 @@ check against the deployed URL.
 DATABASE_URL="<production-pooled>" DIRECT_URL="<production-direct>" npm run db:seed
 ```
 
-Put the demo credentials in the README and the submission email. A reviewer who has to register an
-account before seeing anything is a reviewer looking at an empty dashboard.
+Put the demo credentials in the README. Anyone who has to register an account before seeing
+anything first sees an empty dashboard.
 
 ## Step 5 — Verify the live deployment
 

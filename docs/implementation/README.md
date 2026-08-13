@@ -15,7 +15,7 @@ Phases are meant to be executed in order — each one leaves the app in a workin
 | 6 | Payments API | [06-payments-api.md](06-payments-api.md) | Locked transaction, overpayment rejection |
 | 7 | Dashboard | [07-dashboard.md](07-dashboard.md) | Order list, status filter, pagination |
 | 8 | Order detail | [08-order-detail.md](08-order-detail.md) | Line items, payment history, payment form |
-| 9 | Seed | [09-seed.md](09-seed.md) | Demo data + assignment scenario verification |
+| 9 | Seed | [09-seed.md](09-seed.md) | Demo data + core scenario verification |
 | 10 | Deploy | [10-deploy.md](10-deploy.md) | Vercel + Neon, live URL |
 | 11 | Production roadmap | [11-production-roadmap.md](11-production-roadmap.md) | `docs/production-roadmap.md` |
 | 12 | README | [12-readme.md](12-readme.md) | Final root README |
@@ -24,7 +24,7 @@ Phases are meant to be executed in order — each one leaves the app in a workin
 ## Global conventions
 
 **Language.** Everything committed to this repository is written in English: code, identifiers,
-UI copy, error messages, commit messages, and documentation. The reviewer is an international team.
+UI copy, error messages, commit messages, and documentation.
 
 **Money is never a float.** Every monetary value is stored and computed as an integer number of
 cents (`totalCents`, `paidCents`, `unitPriceCents`, `amountCents`). Conversion to and from decimal

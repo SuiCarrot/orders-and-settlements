@@ -311,7 +311,7 @@ error mapping and `requireUser()` supplies the `401`.
 
 ## Step 6 — The immutability rule
 
-This is the decision the assignment explicitly asks to be documented either way.
+This is a decision worth documenting explicitly, whichever way it goes.
 
 **Rule.** Once an order has at least one payment, its **line items become read-only**. `customer`
 and `dueDate` remain editable. `DELETE` is rejected entirely.

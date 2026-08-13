@@ -3,10 +3,10 @@
 **Goal.** Record payments against an order such that the sum of payments can never exceed the order
 total, including when two requests arrive at the same instant.
 
-**Definition of done.** The assignment's scenario passes end to end, and an integration test that
+**Definition of done.** The core payment scenario passes end to end, and an integration test that
 fires two payments concurrently against the same order proves exactly one is accepted.
 
-This is the phase the assignment is really about. Everything else is scaffolding around it.
+This is the phase the whole exercise is really about. Everything else is scaffolding around it.
 
 ---
 
@@ -142,7 +142,8 @@ Details that matter here:
 
 ### Alternatives considered
 
-Recorded in the README, because the assignment asks for the concurrency approach to be documented.
+Recorded in the README, because the concurrency approach deserves the same rigour as the rest of
+the design record.
 
 **`SERIALIZABLE` isolation with retry.** Postgres would abort one of the two transactions with a
 serialisation failure, and the application would retry it, at which point it would correctly see
@@ -157,9 +158,9 @@ WHERE id = $2 AND user_id = $3 AND paid_cents + $1 <= total_cents
 ```
 
 Atomic with no explicit lock, and the fastest option. Rejected because zero affected rows is
-ambiguous — order missing, not yours, or overpaid — so producing the actionable error the
-assignment asks for would require a second query anyway, and the payment row still has to be
-inserted in the same transaction. The explicit lock says what it means.
+ambiguous — order missing, not yours, or overpaid — so producing an actionable error would
+require a second query anyway, and the payment row still has to be inserted in the same
+transaction. The explicit lock says what it means.
 
 **Optimistic locking with a version column.** Adds a column and a retry path to solve a problem
 that a row lock already solves in one statement. Reasonable at high write volume on the same row,
@@ -215,10 +216,10 @@ beforeEach(async () => {
 });
 ```
 
-**The assignment scenario**, verified exactly as written:
+**The core scenario**, verified exactly as written:
 
 ```ts
-it("follows the assignment scenario", async () => {
+it("follows the core payment scenario end to end", async () => {
   const order = await createOrder(userId, {
     customer: "Acme Inc",
     dueDate: addDays(new Date(), 7).toISOString().slice(0, 10),

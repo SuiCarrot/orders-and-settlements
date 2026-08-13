@@ -24,7 +24,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
-    // Email verification is out of scope for this assignment; see docs/production-roadmap.md.
+    // Email verification is out of scope for this build; see docs/production-roadmap.md.
     requireEmailVerification: false,
   },
   session: {

@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 
 /**
- * Runs the assignment's exact scenario against a running server over HTTP —
- * the real API contract, status codes and error bodies, not the service
- * layer directly. Point it at a deployment with:
+ * Runs the core payment scenario against a running server over HTTP — the
+ * real API contract, status codes and error bodies, not the service layer
+ * directly. Point it at a deployment with:
  *
  *   BASE_URL=https://your-deploy.vercel.app npm run verify:scenario
  */
@@ -124,7 +124,7 @@ const steps: { label: string; run: () => Promise<string> }[] = [
 ];
 
 async function main() {
-  console.log(`Verifying assignment scenario against ${BASE_URL}\n`);
+  console.log(`Verifying core payment scenario against ${BASE_URL}\n`);
   await signUpTestUser();
 
   let passed = 0;

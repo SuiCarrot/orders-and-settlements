@@ -6,9 +6,9 @@ Next.js, or HTTP, covered by unit tests that run in milliseconds.
 **Definition of done.** `npm test` passes with the full status matrix, money round-trip cases, and
 overpayment boundaries covered. Nothing in `src/server/domain/` imports from outside that folder.
 
-This phase is written before the API on purpose. Every criterion the assignment actually grades —
-line item math, payment totals, status logic, overpayment prevention — lives in these three files.
-Getting them right first means the API layer becomes thin plumbing.
+This phase is written before the API on purpose. Line item math, payment totals, status logic and
+overpayment prevention — the rules that matter most — live in these three files. Getting them
+right first means the API layer becomes thin plumbing.
 
 ---
 
@@ -76,9 +76,9 @@ export function orderTotalCents(items: LineItemInput[]): number {
 
 Integer multiplication of an integer quantity by integer cents is exact, and every realistic order
 total stays far below `Number.MAX_SAFE_INTEGER` (about $90 trillion), so there is no precision
-concern. The assignment defines order total as equal to subtotal, with no order-level tax or
-discount; the function is kept separate from `orderTotalCents` in name so that adding a tax line
-later has an obvious home.
+concern. Order total is defined as equal to subtotal, with no order-level tax or discount; the
+function is kept separate from `orderTotalCents` in name so that adding a tax line later has an
+obvious home.
 
 ## Step 3 — `status.ts`
 
@@ -116,12 +116,12 @@ export function amountDueCents(totalCents: number, paidCents: number, refundedCe
 
 ### The precedence decision
 
-The assignment statuses are not mutually exclusive — an order can simultaneously have a partial
+These statuses are not mutually exclusive — an order can simultaneously have a partial
 payment and be past its due date. The order of the branches above is the actual business rule,
 and the README documents it:
 
 1. **`paid` wins over everything.** An order that was overdue and has since been settled shows as
-   `paid`. This is the edge case the assignment explicitly asks about. The reasoning: status
+   `paid`. This is the edge case worth being explicit about. The reasoning: status
    answers "what do I need to do about this order", and a settled order needs nothing. The history
    of having been late is real information, but it belongs in a `paidLate` flag or an audit log,
    not in a field whose job is to drive a work queue. Listed as an improvement in the roadmap.
@@ -204,14 +204,14 @@ export function assertPaymentFits(input: {
 }
 ```
 
-The error carries the maximum allowed amount as structured data, not just prose. The assignment
-asks for an actionable error, and "actionable" means a client can render a "pay the remaining
-$600.00" button without parsing an English sentence.
+The error carries the maximum allowed amount as structured data, not just prose. That is what
+"actionable" means here: a client can render a "pay the remaining $600.00" button without parsing
+an English sentence.
 
 ## Step 5 — Tests
 
-`tests/unit/status.test.ts` — the full matrix, written as a table so a reviewer can read the rule
-off the test:
+`tests/unit/status.test.ts` — the full matrix, written as a table so the rule can be read
+straight off the test:
 
 | paid | total | due date | expected |
 |------|-------|----------|----------|
@@ -251,8 +251,8 @@ describe.each([
 (`"10.005"`, `"1,000.00"`, `"abc"`, `""`, `"1e3"`), and the case that motivates the whole approach:
 summing `"0.10"` and `"0.20"` yields exactly `"0.30"`.
 
-`tests/unit/totals.test.ts` — the assignment's own scenario, two units at $500 giving exactly
-$1,000, plus multi-line orders and quantity of one.
+`tests/unit/totals.test.ts` — the core scenario, two units at $500 giving exactly $1,000, plus
+multi-line orders and quantity of one.
 
 `tests/unit/payment-rules.test.ts` — exact-remainder payment accepted, one cent over rejected, any
 payment against a settled order rejected, and the `details` payload carrying the right maximum.

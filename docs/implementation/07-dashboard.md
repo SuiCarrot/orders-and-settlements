@@ -1,6 +1,6 @@
 # Phase 7 — Dashboard
 
-**Goal.** The order list the assignment specifies: customer, status, order total, amount paid,
+**Goal.** The order list with the required columns: customer, status, order total, amount paid,
 amount due and due date, filterable by status.
 
 **Definition of done.** The list renders every required column, the status filter is shareable as a
@@ -14,8 +14,9 @@ The page reads through the service layer directly rather than fetching its own A
 server component calling `fetch("/api/orders")` on the same server adds a network round trip, loses
 type safety, and forces the session cookie to be forwarded manually.
 
-The REST API still exists and is fully functional — the assignment requires it, and it is what the
-`curl` examples in the README exercise. It just is not the transport for the app's own first paint.
+The REST API still exists and is fully functional — it is a required part of the app, and it is
+what the `curl` examples in the README exercise. It just is not the transport for the app's own
+first paint.
 
 `src/app/(app)/dashboard/page.tsx`:
 
@@ -62,7 +63,7 @@ The REST API (`GET /api/orders?status=`) still filters in SQL; this is a UI conc
 
 ## Step 3 — The table
 
-Columns are exactly the ones the assignment lists, in that order.
+Columns are exactly the required ones, in that order.
 
 ```tsx
 <Table>
@@ -93,8 +94,7 @@ Columns are exactly the ones the assignment lists, in that order.
 </Table>
 ```
 
-Small things that make a financial table readable, and that a reviewer scoring "dashboard
-usability" will register:
+Small things that make a financial table readable:
 
 - **`tabular-nums` and right alignment on money.** Proportional digits make columns of numbers
   impossible to scan.

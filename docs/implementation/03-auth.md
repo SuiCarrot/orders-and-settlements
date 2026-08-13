@@ -11,21 +11,21 @@ returns `401` with the standard error shape.
 
 ## Why Better Auth
 
-The assignment says email and password is sufficient and does not evaluate authentication, so the
-goal is a correct, boring implementation that consumes as little of the budget as possible.
+Email and password is sufficient for this build, so the goal is a correct, boring implementation
+that stays out of the way of the rest of the work.
 
 Auth.js v5 was the obvious default until early 2026, when the project entered maintenance mode and
 its maintainers began directing new projects to Better Auth. Better Auth keeps user data in our own
-Neon database — a reviewer only needs `DATABASE_URL` to run the project, with no third-party
-account to provision — and its sessions are rows in a `sessions` table rather than stateless JWTs,
-which means logout and session revocation actually work server-side. For an application about
-financial records, being able to revoke a session is not a small detail.
+Neon database — running the project needs only `DATABASE_URL`, with no third-party account to
+provision — and its sessions are rows in a `sessions` table rather than stateless JWTs, which means
+logout and session revocation actually work server-side. For an application about financial
+records, being able to revoke a session is not a small detail.
 
 Hand-rolling auth was considered and rejected. The happy path is genuinely small, but the version
 worth defending in a fintech code review — rate limiting, lockout, enumeration-safe responses,
-password reset, revocation, audit trail — is one to two days of work in an area the assignment
-explicitly excluded from evaluation. That reasoning is recorded in
-[11-production-roadmap.md](11-production-roadmap.md) rather than being silently omitted.
+password reset, revocation, audit trail — is one to two days of work outside this build's scope.
+That reasoning is recorded in [11-production-roadmap.md](11-production-roadmap.md) rather than
+being silently omitted.
 
 ## Step 1 — Install
 
@@ -58,7 +58,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 10,
-    // Email verification is out of scope for this assignment; see the production roadmap.
+    // Email verification is out of scope for this build; see the production roadmap.
     requireEmailVerification: false,
   },
   session: {
@@ -186,8 +186,9 @@ header.
 
 The proxy exists purely so a logged-out visitor gets a fast redirect instead of a flash of an empty
 dashboard. Authorization is enforced in [05-orders-api.md](05-orders-api.md) and every page, by
-`requireUser()` plus a `userId` filter on every query. The README says this explicitly, because a
-reviewer at a financial company will look for exactly this mistake.
+`requireUser()` plus a `userId` filter on every query. The README says this explicitly, because
+conflating a redirect proxy with an authorization boundary is a real security mistake, and one
+worth ruling out on the record.
 
 ## Step 7 — Login and register pages
 
