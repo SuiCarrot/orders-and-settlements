@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { UnauthenticatedError } from "@/server/auth/require-user";
+import { InvalidPasswordError } from "@/server/auth/confirm-password";
 import { OverpaymentError } from "@/server/domain/payment-rules";
 import { ExcessRefundError } from "@/server/domain/refund-rules";
 import { InvalidMoneyError } from "@/server/domain/money";
@@ -28,6 +29,9 @@ function body(code: string, message: string, details?: unknown) {
 export function toErrorResponse(error: unknown): NextResponse {
   if (error instanceof UnauthenticatedError) {
     return NextResponse.json(body("UNAUTHENTICATED", "Authentication required."), { status: 401 });
+  }
+  if (error instanceof InvalidPasswordError) {
+    return NextResponse.json(body(error.code, error.message), { status: 403 });
   }
   if (error instanceof ZodError) {
     return NextResponse.json(

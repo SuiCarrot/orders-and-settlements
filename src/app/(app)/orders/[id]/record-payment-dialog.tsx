@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { cacheOrder } from "@/lib/order-cache";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +24,6 @@ import { paymentFormSchema } from "@/lib/schemas/order";
 import type { SerialisedOrder } from "./types";
 
 export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [apiError, setApiError] = useState<ApiError | null>(null);
   const fullyPaid = order.amountDue === "0.00";
@@ -54,9 +53,10 @@ export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
       return;
     }
 
+    const body = (await response.json()) as { data: SerialisedOrder };
+    cacheOrder(body.data);
     setOpen(false);
     toast.success(`Payment of ${currency(values.amount)} recorded.`);
-    router.refresh();
   }
 
   function onOpenChange(next: boolean) {

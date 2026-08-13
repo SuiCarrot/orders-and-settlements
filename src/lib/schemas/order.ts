@@ -23,6 +23,19 @@ export const updateOrderSchema = z.object({
   items: z.array(lineItemSchema).min(1).max(100).optional(),
 });
 
+export const confirmPasswordSchema = z.object({
+  password: z.string().min(1, "Password is required."),
+});
+
+export const updateOrderRequestSchema = updateOrderSchema
+  .extend(confirmPasswordSchema.shape)
+  .refine(
+    (value) => value.customer !== undefined || value.dueDate !== undefined || value.items !== undefined,
+    { message: "Provide at least one field to update." },
+  );
+
+export const deleteOrderRequestSchema = confirmPasswordSchema;
+
 export const listOrdersSchema = z.object({
   status: z.enum(["pending", "partially_paid", "paid", "overdue"]).optional(),
   page: z.coerce.number().int().min(1).default(1),

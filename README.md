@@ -49,8 +49,8 @@ Integration tests share the Neon project under a dedicated `test_isolation` sche
 | `GET` | `/api/orders/export` | CSV download (`from`, `to`, optional `status`; max 366 days) |
 | `POST` | `/api/orders` | Create with line items |
 | `GET` | `/api/orders/:id` | Detail with items, payments, refunds and activity |
-| `PATCH` | `/api/orders/:id` | Update (line items lock after first payment) |
-| `DELETE` | `/api/orders/:id` | Delete (rejected once any payment exists) |
+| `PATCH` | `/api/orders/:id` | Update (password required; line items lock after first payment) |
+| `DELETE` | `/api/orders/:id` | Delete (password required; rejected once any payment exists) |
 | `POST` | `/api/orders/:id/payments` | Record a payment |
 | `POST` | `/api/orders/:id/payments/:paymentId/refunds` | Record a refund against a payment |
 
@@ -180,6 +180,8 @@ Proven by `tests/integration/payments.test.ts` against a real Postgres schema. U
 
 Once an order has at least one payment, **line items become read-only**. `customer` and `dueDate` stay editable. `DELETE` is rejected.
 
+Editing and deleting both require the signed-in user's **password in the request body**, checked against the stored credential hash. A valid session cookie is not enough — the UI asks for the password again before the change is sent.
+
 Editing line items changes `totalCents`, and `totalCents` is the ceiling every recorded payment was validated against. Lowering it below `paidCents` would either violate the CHECK constraint or retroactively turn a valid payment into an overpayment. Once money has moved against a document, the amounts on that document are history.
 
 A misspelled customer name or a renegotiated due date do not have that property. A system that forces a user to void a paid order to fix a typo will simply be worked around.
@@ -204,7 +206,7 @@ Shipped after the scored core:
 - **`paidCents` denormalised onto the order** so it can be locked and indexed. The CHECK constraint plus a planned reconciliation job are the safety net; a full double-entry ledger is the longer-term model.
 - **Authentication delegated to Better Auth** (scrypt, revocable sessions). Hand-rolled bcrypt+JWT was considered and rejected: the version worth defending in a fintech review is days of work in an area the assignment excluded from scoring.
 - **`proxy.ts` is not a security boundary.** It only checks that a cookie *exists*, so a logged-out visitor is redirected without a flash of empty UI. Authorization is `requireUser()` plus `userId` on every query. Next.js middleware can be bypassed (CVE-2025-29927); treating it as auth would be the mistake a reviewer looks for.
-- **Offset pagination** on the API; the dashboard filters the loaded list in the browser so status tabs do not round-trip to Neon.
+- **Offset pagination** on the API; the dashboard filters the loaded list in the browser so status tabs do not round-trip to Neon. Opening an order from that list reads the already-fetched payload from a tab-local cache (`sessionStorage`) instead of querying the order again.
 - **Payments are append-only.** A mistake is a `Refund` row that decrements `paidCents`, not an `UPDATE` or `DELETE` on the payment. Derived status flows backwards for free.
 
 ---

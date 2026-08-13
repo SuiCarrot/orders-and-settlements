@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { cacheOrder } from "@/lib/order-cache";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { currency, todayIsoDate } from "@/lib/format";
 import { readApiError, type ApiError } from "@/lib/api-error";
 import { refundFormSchema, type CreateRefundInput } from "@/lib/schemas/order";
+import type { SerialisedOrder } from "./types";
 
 export function RefundDialog({
   orderId,
@@ -31,7 +32,6 @@ export function RefundDialog({
   paymentId: string;
   maxAmount: string;
 }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [apiError, setApiError] = useState<ApiError | null>(null);
 
@@ -60,9 +60,10 @@ export function RefundDialog({
       return;
     }
 
+    const body = (await response.json()) as { data: SerialisedOrder };
+    cacheOrder(body.data);
     setOpen(false);
     toast.success(`Refund of ${currency(values.amount)} recorded.`);
-    router.refresh();
   }
 
   function onOpenChange(next: boolean) {

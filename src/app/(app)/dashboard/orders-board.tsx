@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OrderStatus } from "@/server/domain/status";
+import { cacheOrders } from "@/lib/order-cache";
 import { StatusFilter } from "./status-filter";
 import { OrdersTable, type DashboardOrder } from "./orders-table";
 import { Pagination } from "./pagination";
@@ -27,6 +28,9 @@ function dashboardUrl(status?: OrderStatus, page = 1) {
  * changes filter the already-loaded list in memory and only rewrite the URL
  * via `history.replaceState` — `router.push` would refetch the RSC payload
  * from Neon, which is the delay the tabs were showing.
+ *
+ * The same payload is written to a tab-local cache so opening an order from
+ * this table does not query Neon again for data the list already returned.
  */
 export function OrdersBoard({
   orders,
@@ -37,6 +41,10 @@ export function OrdersBoard({
 }: OrdersBoardProps) {
   const [status, setStatus] = useState<OrderStatus | undefined>(initialStatus);
   const [page, setPage] = useState(initialPage);
+
+  useEffect(() => {
+    cacheOrders(orders);
+  }, [orders]);
 
   const filtered = useMemo(
     () => (status ? orders.filter((order) => order.status === status) : orders),

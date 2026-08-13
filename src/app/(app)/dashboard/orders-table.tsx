@@ -15,6 +15,7 @@ import { currency } from "@/lib/format";
 import type { OrderStatus } from "@/server/domain/status";
 import { DueDate } from "./due-date";
 import { OrderRow } from "./order-row";
+import type { SerialisedOrder } from "@/app/(app)/orders/[id]/types";
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "pending",
@@ -23,15 +24,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   overdue: "overdue",
 };
 
-export interface DashboardOrder {
-  id: string;
-  customer: string;
-  status: OrderStatus;
-  orderTotal: string;
-  amountPaid: string;
-  amountDue: string;
-  dueDate: string;
-}
+export type DashboardOrder = SerialisedOrder;
 
 interface OrdersTableProps {
   orders: DashboardOrder[];

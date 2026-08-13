@@ -1,7 +1,10 @@
 import { afterAll, beforeEach } from "vitest";
+import { hashPassword } from "better-auth/crypto";
 import { dbTable, prisma } from "@/server/db/prisma";
 
 export const TEST_USER_ID = "integration-test-user";
+export const TEST_PASSWORD = "integration-password-123";
+const TEST_ACCOUNT_ID = "integration-test-credential";
 
 beforeEach(async () => {
   // Must go through dbTable() — a bare "orders" etc. would truncate the
@@ -19,6 +22,19 @@ beforeEach(async () => {
       emailVerified: true,
     },
   });
+
+  const existingAccount = await prisma.account.findUnique({ where: { id: TEST_ACCOUNT_ID } });
+  if (!existingAccount) {
+    await prisma.account.create({
+      data: {
+        id: TEST_ACCOUNT_ID,
+        accountId: TEST_USER_ID,
+        providerId: "credential",
+        userId: TEST_USER_ID,
+        password: await hashPassword(TEST_PASSWORD),
+      },
+    });
+  }
 });
 
 afterAll(async () => {

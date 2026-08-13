@@ -15,6 +15,8 @@ import { currency, todayIsoDate } from "@/lib/format";
 import { formatCents, parseMoneyToCents } from "@/server/domain/money";
 import { lineTotalCents } from "@/server/domain/totals";
 import { readApiError, type ApiError } from "@/lib/api-error";
+import { cacheOrder } from "@/lib/order-cache";
+import type { SerialisedOrder } from "@/app/(app)/orders/[id]/types";
 
 const EMPTY_ITEM = { description: "", quantity: 1, unitPrice: "" };
 
@@ -64,7 +66,8 @@ export function CreateOrderForm() {
       return;
     }
 
-    const { data } = (await response.json()) as { data: { id: string } };
+    const { data } = (await response.json()) as { data: SerialisedOrder };
+    cacheOrder(data);
     toast.success(`Order for ${values.customer} created.`);
     router.push(`/orders/${data.id}`);
   }

@@ -122,7 +122,7 @@ export async function listOrders(userId: string, query: ListOrdersQuery) {
   const [orders, total] = await prisma.$transaction([
     prisma.order.findMany({
       where,
-      ...orderListInclude,
+      ...orderWithRelations,
       orderBy: { createdAt: "desc" },
       skip: (query.page - 1) * query.perPage,
       take: query.perPage,
