@@ -55,7 +55,7 @@ first request committed.
 `src/server/services/payment-service.ts`:
 
 ```ts
-import { prisma } from "@/server/db/prisma";
+import { dbTable, prisma } from "@/server/db/prisma";
 import { assertPaymentFits } from "@/server/domain/payment-rules";
 import { parseMoneyToCents } from "@/server/domain/money";
 import { NotFoundError } from "@/server/http/errors";
@@ -79,7 +79,7 @@ export async function recordPayment(
       // someone else is indistinguishable from one that does not exist.
       const [order] = await tx.$queryRaw<LockedOrder[]>`
         SELECT id, total_cents, paid_cents
-        FROM orders
+        FROM ${dbTable("orders")}
         WHERE id = ${orderId} AND user_id = ${userId}
         FOR UPDATE
       `;
@@ -120,6 +120,14 @@ Details that matter here:
 - **`$queryRaw` is used only for the lock**, because Prisma has no `FOR UPDATE` in its fluent API.
   Every value is interpolated as a parameter through the tagged template, not string-concatenated,
   so there is no injection surface.
+- **Raw queries must go through `dbTable()`, not a bare table name.** The Neon adapter's `schema`
+  option (see [02-database.md](02-database.md)) only affects SQL the fluent client generates
+  itself. Hand-written raw SQL is not rewritten and resolves an unqualified `FROM orders` against
+  the connection's default `search_path` — `public` — regardless of `DATABASE_SCHEMA`. This was
+  caught by the integration tests below: with a bare table name, the lock query silently looked in
+  `public` while the fluent `tx.order.update` in the same transaction correctly targeted
+  `test_isolation`, so every payment failed with a spurious `NotFoundError`. `src/server/db/prisma.ts`
+  exports `dbTable(name)`, which every raw query in the codebase uses instead.
 - **Raw SQL means snake_case.** The query bypasses Prisma's field mapping, so it returns
   `total_cents`, not `totalCents`. Typing the result as `LockedOrder` keeps that boundary explicit.
 - **`increment` rather than a computed value.** Even though the row is already locked, an atomic
@@ -194,14 +202,16 @@ export const createPaymentSchema = z.object({
 Unit tests cannot prove any of this, because the guarantee comes from Postgres. These tests run
 against the Neon `test` branch created in [02-database.md](02-database.md).
 
-`tests/integration/setup.ts` points the Prisma client at `TEST_DATABASE_URL` and truncates the
-tables between tests:
+`vitest.integration.config.ts` sets `DATABASE_URL` to `TEST_DATABASE_URL` and `DATABASE_SCHEMA` to
+`test_isolation` via Vitest's `test.env`, applied before any test file (or the Prisma singleton it
+imports) loads — a `setupFiles` side effect would run too late, since ESM `import` statements are
+hoisted above it. `tests/integration/setup.ts` then truncates the tables between tests and ensures
+a stable test user exists (orders have a foreign key to `users`):
 
 ```ts
 beforeEach(async () => {
-  await prisma.$executeRawUnsafe(
-    'TRUNCATE "payments", "order_items", "orders" RESTART IDENTITY CASCADE',
-  );
+  await prisma.$executeRaw`TRUNCATE ${dbTable("payments")}, ${dbTable("order_items")}, ${dbTable("orders")} RESTART IDENTITY CASCADE`;
+  await prisma.user.upsert({ where: { id: TEST_USER_ID }, update: {}, create: { /* ... */ } });
 });
 ```
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseMoneyToCents } from "@/server/domain/money";
 
 const moneyString = z
   .string()
@@ -27,6 +28,17 @@ export const listOrdersSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
 });
+
+export const createPaymentSchema = z.object({
+  amount: z
+    .string()
+    .regex(/^\d{1,13}(\.\d{1,2})?$/, 'Use a decimal amount, e.g. "400.00".')
+    .refine((v) => parseMoneyToCents(v) >= 1, "Payment must be at least $0.01."),
+  date: z.iso.date(),
+  note: z.string().trim().max(500).optional(),
+});
+
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
 export type LineItemValues = z.infer<typeof lineItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
