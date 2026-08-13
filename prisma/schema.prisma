@@ -26,6 +26,7 @@ model Order {
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   items    OrderItem[]
   payments Payment[]
+  events   OrderEvent[]
 
   @@index([userId, dueDate])
   @@index([userId, createdAt])
@@ -58,6 +59,22 @@ model Payment {
 
   @@index([orderId, paidAt])
   @@map("payments")
+}
+
+model OrderEvent {
+  id         String   @id @default(cuid())
+  orderId    String   @map("order_id")
+  userId     String   @map("user_id")
+  type       String
+  fromStatus String?  @map("from_status")
+  toStatus   String?  @map("to_status")
+  payload    Json
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, createdAt])
+  @@map("order_events")
 }
 
 model User {

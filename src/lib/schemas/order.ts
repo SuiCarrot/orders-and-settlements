@@ -50,3 +50,21 @@ export type LineItemValues = z.infer<typeof lineItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;
 export type ListOrdersQuery = z.infer<typeof listOrdersSchema>;
+
+export const exportOrdersSchema = z
+  .object({
+    from: z.iso.date(),
+    to: z.iso.date(),
+    status: z.enum(["pending", "partially_paid", "paid", "overdue"]).optional(),
+  })
+  .refine((value) => value.from <= value.to, { message: "from must not be after to." })
+  .refine(
+    (value) => {
+      const from = new Date(`${value.from}T00:00:00Z`);
+      const to = new Date(`${value.to}T00:00:00Z`);
+      return (to.getTime() - from.getTime()) / 86_400_000 <= 366;
+    },
+    { message: "Export range cannot exceed 366 days." },
+  );
+
+export type ExportOrdersQuery = z.infer<typeof exportOrdersSchema>;

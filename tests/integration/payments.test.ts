@@ -75,4 +75,26 @@ describe("recordPayment", () => {
     expect(final.paidCents).toBe(60_000);
     expect(await prisma.payment.count({ where: { orderId: order.id } })).toBe(1);
   });
+
+  it("writes order.created and payment.recorded events in the same transaction", async () => {
+    const order = await makeOrder();
+    expect(order.events).toHaveLength(1);
+    expect(order.events[0]).toMatchObject({
+      type: "order.created",
+      fromStatus: null,
+      toStatus: "pending",
+    });
+
+    const { order: after } = await recordPayment(TEST_USER_ID, order.id, {
+      amount: "400.00",
+      date: today,
+    });
+
+    expect(after.events.map((event) => event.type)).toEqual(["order.created", "payment.recorded"]);
+    expect(after.events[1]).toMatchObject({
+      type: "payment.recorded",
+      fromStatus: "pending",
+      toStatus: "partially_paid",
+    });
+  });
 });

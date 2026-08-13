@@ -1,6 +1,7 @@
 import { dbSchema, prisma } from "@/server/db/prisma";
 import { assertPaymentFits } from "@/server/domain/payment-rules";
 import { parseMoneyToCents } from "@/server/domain/money";
+import { eventStatus } from "@/server/domain/order-events";
 import { NotFoundError } from "@/server/http/errors";
 import type { CreatePaymentInput } from "@/lib/schemas/order";
 import { orderWithRelations, type OrderWithRelations } from "./order-service";
@@ -9,6 +10,7 @@ interface LockedOrder {
   id: string;
   total_cents: number;
   paid_cents: number;
+  due_date: Date;
 }
 
 export async function recordPayment(
@@ -20,15 +22,8 @@ export async function recordPayment(
 
   return prisma.$transaction(
     async (tx) => {
-      // Lock the order row. Scoping by userId here means an order belonging to
-      // someone else is indistinguishable from one that does not exist.
-      //
-      // $queryRawUnsafe, not the tagged-template $queryRaw, because this query
-      // both needs the schema-qualified table name and binds parameters — see
-      // the comment on dbTable() in src/server/db/prisma.ts for why mixing
-      // those two in a tagged template breaks with this driver.
       const [order] = await tx.$queryRawUnsafe<LockedOrder[]>(
-        `SELECT id, total_cents, paid_cents FROM "${dbSchema}"."orders"
+        `SELECT id, total_cents, paid_cents, due_date FROM "${dbSchema}"."orders"
          WHERE id = $1 AND user_id = $2 FOR UPDATE`,
         orderId,
         userId,
@@ -36,14 +31,19 @@ export async function recordPayment(
 
       if (!order) throw new NotFoundError("Order");
 
-      // Throws OverpaymentError with the maximum allowed amount attached.
+      const fromStatus = eventStatus({
+        totalCents: order.total_cents,
+        paidCents: order.paid_cents,
+        dueDate: order.due_date,
+      });
+
       assertPaymentFits({
         amountCents,
         totalCents: order.total_cents,
         paidCents: order.paid_cents,
       });
 
-      await tx.payment.create({
+      const payment = await tx.payment.create({
         data: {
           orderId,
           amountCents,
@@ -58,7 +58,20 @@ export async function recordPayment(
         ...orderWithRelations,
       });
 
-      return { order: updated };
+      await tx.orderEvent.create({
+        data: {
+          orderId,
+          userId,
+          type: "payment.recorded",
+          fromStatus,
+          toStatus: eventStatus(updated),
+          payload: { paymentId: payment.id, amountCents: payment.amountCents },
+        },
+      });
+
+      return {
+        order: await tx.order.findFirstOrThrow({ where: { id: orderId }, ...orderWithRelations }),
+      };
     },
     { isolationLevel: "ReadCommitted", timeout: 10_000 },
   );

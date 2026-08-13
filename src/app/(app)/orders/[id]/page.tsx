@@ -7,6 +7,7 @@ import { OrderHeader } from "./order-header";
 import { PaymentProgress } from "./payment-progress";
 import { LineItemsTable } from "./line-items-table";
 import { PaymentHistory } from "./payment-history";
+import { AuditTimeline } from "./audit-timeline";
 
 interface OrderDetailPageProps {
   params: Promise<{ id: string }>;
@@ -37,6 +38,7 @@ export default async function OrderDetailPage({ params }: OrderDetailPageProps) 
         isLocked={(order.payments ?? []).length > 0}
       />
       <PaymentHistory payments={order.payments ?? []} orderTotal={order.orderTotal} />
+      <AuditTimeline events={order.events ?? []} />
     </main>
   );
 }

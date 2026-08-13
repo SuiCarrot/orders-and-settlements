@@ -1,4 +1,4 @@
-import type { Order, OrderItem, Payment } from "@/generated/prisma";
+import type { Order, OrderEvent, OrderItem, Payment } from "@/generated/prisma";
 import { amountDueCents, deriveStatus } from "@/server/domain/status";
 import { formatCents } from "@/server/domain/money";
 import type { OrderWithRelations } from "@/server/services/order-service";
@@ -23,9 +23,21 @@ export function serialisePayment(payment: Payment) {
   };
 }
 
+export function serialiseEvent(event: OrderEvent) {
+  return {
+    id: event.id,
+    type: event.type,
+    fromStatus: event.fromStatus,
+    toStatus: event.toStatus,
+    payload: event.payload,
+    createdAt: event.createdAt.toISOString(),
+  };
+}
+
 type SerialisableOrder = Pick<Order, "id" | "customer" | "dueDate" | "totalCents" | "paidCents" | "createdAt"> & {
   items: OrderItem[];
   payments?: Payment[];
+  events?: OrderEvent[];
 };
 
 export function serialiseOrder(order: SerialisableOrder | OrderWithRelations, now = new Date()) {
@@ -44,6 +56,7 @@ export function serialiseOrder(order: SerialisableOrder | OrderWithRelations, no
     amountDue: formatCents(amountDueCents(order.totalCents, order.paidCents)),
     items: order.items.map(serialiseItem),
     payments: order.payments?.map(serialisePayment),
+    events: order.events?.map(serialiseEvent),
     createdAt: order.createdAt.toISOString(),
   };
 }

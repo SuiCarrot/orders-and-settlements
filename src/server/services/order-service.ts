@@ -3,11 +3,23 @@ import { prisma } from "@/server/db/prisma";
 import { parseMoneyToCents, formatCents } from "@/server/domain/money";
 import { lineTotalCents, orderTotalCents } from "@/server/domain/totals";
 import type { OrderStatus } from "@/server/domain/status";
+import { eventStatus } from "@/server/domain/order-events";
 import { ConflictError, NotFoundError } from "@/server/http/errors";
-import type { CreateOrderInput, ListOrdersQuery, UpdateOrderInput } from "@/lib/schemas/order";
+import type { CreateOrderInput, ExportOrdersQuery, ListOrdersQuery, UpdateOrderInput } from "@/lib/schemas/order";
+
+export const orderListInclude = {
+  include: {
+    items: true,
+    payments: { orderBy: { paidAt: "desc" as const } },
+  },
+} satisfies Prisma.OrderDefaultArgs;
 
 export const orderWithRelations = {
-  include: { items: true, payments: { orderBy: { paidAt: "desc" as const } } },
+  include: {
+    items: true,
+    payments: { orderBy: { paidAt: "desc" as const } },
+    events: { orderBy: { createdAt: "asc" as const } },
+  },
 } satisfies Prisma.OrderDefaultArgs;
 
 export type OrderWithRelations = Prisma.OrderGetPayload<typeof orderWithRelations>;
@@ -32,15 +44,30 @@ export async function createOrder(userId: string, input: CreateOrderInput) {
     throw new ConflictError("An order must total at least $0.01.", "EMPTY_ORDER_TOTAL");
   }
 
-  return prisma.order.create({
-    data: {
-      userId,
-      customer: input.customer,
-      dueDate: new Date(`${input.dueDate}T00:00:00Z`),
-      totalCents,
-      items: { create: items },
-    },
-    ...orderWithRelations,
+  return prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        userId,
+        customer: input.customer,
+        dueDate: new Date(`${input.dueDate}T00:00:00Z`),
+        totalCents,
+        items: { create: items },
+      },
+      ...orderWithRelations,
+    });
+
+    await tx.orderEvent.create({
+      data: {
+        orderId: order.id,
+        userId,
+        type: "order.created",
+        fromStatus: null,
+        toStatus: eventStatus(order),
+        payload: { customer: order.customer, totalCents: order.totalCents },
+      },
+    });
+
+    return tx.order.findFirstOrThrow({ where: { id: order.id }, ...orderWithRelations });
   });
 }
 
@@ -59,7 +86,7 @@ export async function getOrder(userId: string, orderId: string): Promise<OrderWi
  * hand. The seed script (phase 9) creates one order per status and the integration suite asserts
  * these four clauses partition the full set (every order matches exactly one filter).
  */
-function statusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
+export function orderStatusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
   switch (status) {
     case "paid":
       return { paidCents: { gte: prisma.order.fields.totalCents } };
@@ -75,7 +102,7 @@ function statusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
   }
 }
 
-function startOfTodayUtc(): Date {
+export function startOfTodayUtc(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
@@ -83,13 +110,13 @@ function startOfTodayUtc(): Date {
 export async function listOrders(userId: string, query: ListOrdersQuery) {
   const where: Prisma.OrderWhereInput = {
     userId,
-    ...(query.status ? statusWhere(query.status, startOfTodayUtc()) : {}),
+    ...(query.status ? orderStatusWhere(query.status, startOfTodayUtc()) : {}),
   };
 
   const [orders, total] = await prisma.$transaction([
     prisma.order.findMany({
       where,
-      ...orderWithRelations,
+      ...orderListInclude,
       orderBy: { createdAt: "desc" },
       skip: (query.page - 1) * query.perPage,
       take: query.perPage,
@@ -159,7 +186,25 @@ export async function updateOrder(
     data.items = { deleteMany: {}, create: items };
   }
 
-  return prisma.order.update({ where: { id: order.id }, data, ...orderWithRelations });
+  const fromStatus = eventStatus(order);
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.order.update({ where: { id: order.id }, data, ...orderWithRelations });
+    await tx.orderEvent.create({
+      data: {
+        orderId: updated.id,
+        userId,
+        type: "order.updated",
+        fromStatus,
+        toStatus: eventStatus(updated),
+        payload: {
+          customer: updated.customer,
+          dueDate: updated.dueDate.toISOString().slice(0, 10),
+        },
+      },
+    });
+    return tx.order.findFirstOrThrow({ where: { id: updated.id }, ...orderWithRelations });
+  });
 }
 
 export async function deleteOrder(userId: string, orderId: string): Promise<void> {
@@ -174,4 +219,19 @@ export async function deleteOrder(userId: string, orderId: string): Promise<void
   }
 
   await prisma.order.delete({ where: { id: order.id } });
+}
+
+export async function listOrdersForExport(userId: string, query: ExportOrdersQuery) {
+  const from = new Date(`${query.from}T00:00:00Z`);
+  const to = new Date(`${query.to}T23:59:59.999Z`);
+
+  return prisma.order.findMany({
+    where: {
+      userId,
+      createdAt: { gte: from, lte: to },
+      ...(query.status ? orderStatusWhere(query.status, startOfTodayUtc()) : {}),
+    },
+    ...orderListInclude,
+    orderBy: { createdAt: "desc" },
+  });
 }

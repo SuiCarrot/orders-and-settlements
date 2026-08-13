@@ -9,7 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run tests/unit --passWithNoTests",
-    "test:integration": "vitest run tests/integration --passWithNoTests",
+    "test:integration": "vitest run tests/integration --config vitest.integration.config.ts --passWithNoTests",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
