@@ -40,6 +40,12 @@ export const createPaymentSchema = z.object({
 
 export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
 
+// Client-side alias: same shape as the API contract, used directly as the
+// payment dialog's form schema so the client can never validate something the
+// server would reject.
+export const paymentFormSchema = createPaymentSchema;
+export type PaymentFormValues = CreatePaymentInput;
+
 export type LineItemValues = z.infer<typeof lineItemSchema>;
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type UpdateOrderInput = z.infer<typeof updateOrderSchema>;

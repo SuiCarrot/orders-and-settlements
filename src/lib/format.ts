@@ -20,6 +20,26 @@ export function formatDate(isoDate: string): string {
   return dateFormatter.format(new Date(`${isoDate}T00:00:00Z`));
 }
 
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: "UTC",
+  timeZoneName: "short",
+});
+
+/** An ISO timestamp -> "Aug 20, 2026, 3:04 PM UTC". Used for audit-style "recorded at" columns. */
+export function formatDateTime(isoTimestamp: string): string {
+  return dateTimeFormatter.format(new Date(isoTimestamp));
+}
+
+/** Today's date in UTC, as "YYYY-MM-DD" — matches how dueDate/paidAt are stored and compared. */
+export function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function toUtcDayNumber(date: Date): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
 }
