@@ -6,6 +6,8 @@ B2B order tracking with line items, partial payments, derived status, and a hard
 
 **Demo login:** `demo@example.com` / `demo-password-123`
 
+![Sign in with the demo account](docs/screenshots/login.png)
+
 ![Dashboard with one order in each status](docs/screenshots/dashboard.png)
 
 Next.js 16 · Postgres (Neon) · Prisma 7 · Better Auth · Tailwind / shadcn
@@ -195,6 +197,7 @@ Shipped after the scored core:
 - **Audit log.** `order_events` written inside the same transaction as the change they describe. Status in the log is derived with the same function the UI uses. Seeded demo orders created before this shipped have no historical events; new activity is logged.
 - **CSV export.** Dashboard control and `GET /api/orders/export?from=&to=&status=`. Same filters as the list endpoint. Fields are RFC 4180-quoted; values starting with `=`, `+`, `-` or `@` are prefixed to prevent spreadsheet formula injection. Range is capped at 366 days.
 - **Refunds.** A separate `Refund` row referencing the payment it reverses — never a negative payment. The same `SELECT … FOR UPDATE` serialises a refund racing a payment. `paidCents` is decremented, so derived status flows backwards (`paid` → `partially_paid` / `overdue` / `pending`) without a new status.
+- **Dark mode.** Follows the system preference, with a toggle in the header and on the sign-in screen.
 
 ---
 
@@ -236,7 +239,7 @@ The three that would ship first:
 
 1. **`Idempotency-Key` on payment recording** — the row lock prevents overpayment, not double-recording of a legitimate remainder after a client timeout.
 2. **Rate limiting and lockout on login** — the sign-in endpoint is otherwise an unbounded password oracle.
-3. **A reconciliation job** that asserts `SUM(payments) = orders.paid_cents` and alerts on drift, until a real ledger replaces the denormalised total.
+3. **A reconciliation job** that asserts `SUM(payments) - SUM(refunds) = orders.paid_cents` and alerts on drift, until a real ledger replaces the denormalised total.
 
 The full list — what is missing, why it matters, how it would be built, and what was a scope decision versus a known gap — is in [docs/production-roadmap.md](docs/production-roadmap.md).
 
