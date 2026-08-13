@@ -79,8 +79,11 @@ sidesteps bcrypt's silent 72-byte truncation and the native-binding problems it 
 ## Step 3 — Generate the auth schema
 
 ```bash
-npx auth@latest generate
+npx auth@latest generate --config src/server/auth/auth.ts -y
 ```
+
+(`--config` is required since the auth instance doesn't live at the project root; `-y` skips the
+interactive confirmation prompt.)
 
 This appends `User`, `Session`, `Account` and `Verification` models to `prisma/schema.prisma`. Then
 add the back-relation to `User` by hand and uncomment the `user` field on `Order` from
@@ -188,8 +191,9 @@ reviewer at a financial company will look for exactly this mistake.
 
 ## Step 7 — Login and register pages
 
-Both are client components using `authClient`, styled with the shadcn `form`, `input` and `button`
-primitives, and validated with the shared Zod schemas from `src/lib/schemas/auth.ts`.
+Both are client components using `authClient`, styled with the shadcn `field`, `input` and `button`
+primitives (via `Controller` from React Hook Form, per [08-order-detail.md](08-order-detail.md)),
+and validated with the shared Zod schemas from `src/lib/schemas/auth.ts`.
 
 ```tsx
 "use client";

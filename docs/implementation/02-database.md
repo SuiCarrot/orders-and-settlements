@@ -295,6 +295,23 @@ Three things worth knowing about this file:
 
 Never call `$disconnect()` in request code. Warm serverless instances reuse the connection.
 
+## Step 6.5 — Exclude the generated client from lint
+
+`npx prisma generate` writes real (unminified but very long) TypeScript into
+`src/generated/prisma`. It lives under `src/`, so unlike `node_modules` it is not ignored by
+ESLint automatically, and linting it produces hundreds of meaningless warnings on lines with
+tens of thousands of columns. Add it to `eslint.config.mjs`:
+
+```js
+globalIgnores([
+  ".next/**",
+  "out/**",
+  "build/**",
+  "next-env.d.ts",
+  "src/generated/**",
+]),
+```
+
 ## Step 7 — Commit
 
 ```bash
