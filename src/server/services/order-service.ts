@@ -100,6 +100,35 @@ export async function listOrders(userId: string, query: ListOrdersQuery) {
   return { orders, total };
 }
 
+export interface OrderSummary {
+  outstandingCents: number;
+  overdueCents: number;
+  orderCount: number;
+}
+
+/** One aggregate query pair, not a full order list, to answer "what do I owe" cheaply. */
+export async function getOrderSummary(userId: string): Promise<OrderSummary> {
+  const today = startOfTodayUtc();
+
+  const [outstanding, overdue, orderCount] = await Promise.all([
+    prisma.order.aggregate({
+      where: { userId },
+      _sum: { totalCents: true, paidCents: true },
+    }),
+    prisma.order.aggregate({
+      where: { userId, dueDate: { lt: today }, paidCents: { lt: prisma.order.fields.totalCents } },
+      _sum: { totalCents: true, paidCents: true },
+    }),
+    prisma.order.count({ where: { userId } }),
+  ]);
+
+  return {
+    outstandingCents: (outstanding._sum.totalCents ?? 0) - (outstanding._sum.paidCents ?? 0),
+    overdueCents: (overdue._sum.totalCents ?? 0) - (overdue._sum.paidCents ?? 0),
+    orderCount,
+  };
+}
+
 export async function updateOrder(
   userId: string,
   orderId: string,
