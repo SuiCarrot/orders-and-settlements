@@ -23,10 +23,14 @@ import { readApiError, type ApiError } from "@/lib/api-error";
 import { paymentFormSchema } from "@/lib/schemas/order";
 import type { SerialisedOrder } from "./types";
 
+function defaultPaymentAmount(order: SerialisedOrder) {
+  return order.status === "refunded" ? order.orderTotal : order.amountDue;
+}
+
 export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
   const [open, setOpen] = useState(false);
   const [apiError, setApiError] = useState<ApiError | null>(null);
-  const fullyPaid = order.amountDue === "0.00";
+  const fullyPaid = order.status === "paid";
 
   const {
     control,
@@ -36,7 +40,7 @@ export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
     formState: { isSubmitting },
   } = useForm({
     resolver: zodResolver(paymentFormSchema),
-    defaultValues: { amount: order.amountDue, date: todayIsoDate(), note: "" },
+    defaultValues: { amount: defaultPaymentAmount(order), date: todayIsoDate(), note: "" },
   });
 
   async function onSubmit(values: { amount: string; date: string; note?: string }) {
@@ -63,7 +67,7 @@ export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
     setOpen(next);
     if (next) {
       setApiError(null);
-      reset({ amount: order.amountDue, date: todayIsoDate(), note: "" });
+      reset({ amount: defaultPaymentAmount(order), date: todayIsoDate(), note: "" });
     }
   }
 
@@ -76,7 +80,9 @@ export function RecordPaymentDialog({ order }: { order: SerialisedOrder }) {
         <DialogHeader>
           <DialogTitle>Record a payment</DialogTitle>
           <DialogDescription>
-            {order.customer} owes {currency(order.amountDue)} of {currency(order.orderTotal)}.
+            {order.status === "refunded"
+              ? `${order.customer} was fully refunded. Recording a new payment reopens the order for ${currency(order.orderTotal)}.`
+              : `${order.customer} owes ${currency(order.amountDue)} of ${currency(order.orderTotal)}.`}
           </DialogDescription>
         </DialogHeader>
 

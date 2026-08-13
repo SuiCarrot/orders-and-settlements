@@ -10,6 +10,7 @@ interface StatusSnapshot {
   totalCents: number;
   paidCents: number;
   dueDate: Date;
+  refundedCents?: number;
 }
 
 /** Same deriveStatus the UI uses, so the log cannot record a transition the UI would not show. */

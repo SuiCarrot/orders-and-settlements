@@ -22,6 +22,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   partially_paid: "partially paid",
   paid: "paid",
   overdue: "overdue",
+  refunded: "refunded",
 };
 
 export type DashboardOrder = SerialisedOrder;

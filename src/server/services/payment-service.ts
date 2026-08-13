@@ -4,6 +4,7 @@ import { assertPaymentFits } from "@/server/domain/payment-rules";
 import { assertRefundFits } from "@/server/domain/refund-rules";
 import { parseMoneyToCents } from "@/server/domain/money";
 import { eventStatus } from "@/server/domain/order-events";
+import { sumRefundedCents } from "@/server/domain/status";
 import { NotFoundError } from "@/server/http/errors";
 import type { CreatePaymentInput, CreateRefundInput } from "@/lib/schemas/order";
 import { orderWithRelations, type OrderWithRelations } from "./order-service";
@@ -31,6 +32,14 @@ async function lockOrder(
   return order;
 }
 
+async function refundedCentsOnOrder(tx: Prisma.TransactionClient, orderId: string): Promise<number> {
+  const result = await tx.refund.aggregate({
+    where: { orderId },
+    _sum: { amountCents: true },
+  });
+  return result._sum.amountCents ?? 0;
+}
+
 export async function recordPayment(
   userId: string,
   orderId: string,
@@ -46,6 +55,7 @@ export async function recordPayment(
         totalCents: order.total_cents,
         paidCents: order.paid_cents,
         dueDate: order.due_date,
+        refundedCents: await refundedCentsOnOrder(tx, orderId),
       });
 
       assertPaymentFits({
@@ -75,7 +85,12 @@ export async function recordPayment(
           userId,
           type: "payment.recorded",
           fromStatus,
-          toStatus: eventStatus(updated),
+          toStatus: eventStatus({
+            totalCents: updated.totalCents,
+            paidCents: updated.paidCents,
+            dueDate: updated.dueDate,
+            refundedCents: sumRefundedCents(updated.payments),
+          }),
           payload: { paymentId: payment.id, amountCents: payment.amountCents },
         },
       });
@@ -115,6 +130,7 @@ export async function recordRefund(
         totalCents: order.total_cents,
         paidCents: order.paid_cents,
         dueDate: order.due_date,
+        refundedCents: await refundedCentsOnOrder(tx, orderId),
       });
 
       assertRefundFits({
@@ -146,7 +162,12 @@ export async function recordRefund(
           userId,
           type: "refund.recorded",
           fromStatus,
-          toStatus: eventStatus(updated),
+          toStatus: eventStatus({
+            totalCents: updated.totalCents,
+            paidCents: updated.paidCents,
+            dueDate: updated.dueDate,
+            refundedCents: sumRefundedCents(updated.payments),
+          }),
           payload: {
             refundId: refund.id,
             paymentId,

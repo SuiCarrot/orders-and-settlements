@@ -18,6 +18,10 @@ const VARIANTS: Record<OrderStatus, { label: string; className: string }> = {
     label: "Overdue",
     className: "bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-300",
   },
+  refunded: {
+    label: "Refunded",
+    className: "bg-violet-100 text-violet-800 dark:bg-violet-500/20 dark:text-violet-300",
+  },
 };
 
 // Colour is never the only signal — the label is always text, so the table

@@ -83,50 +83,55 @@ later has an obvious home.
 ## Step 3 — `status.ts`
 
 ```ts
-export type OrderStatus = "pending" | "partially_paid" | "paid" | "overdue";
+export type OrderStatus = "pending" | "partially_paid" | "paid" | "overdue" | "refunded";
 
 export interface StatusInput {
   totalCents: number;
   paidCents: number;
   dueDate: Date;
   now: Date;
+  /** Sum of refund rows. Distinguishes "never paid" from "fully reversed". */
+  refundedCents?: number;
 }
 
-/** Compares calendar days in UTC — an order is overdue only after its due date has passed. */
-function isPastDue(dueDate: Date, now: Date): boolean {
-  return toUtcDayNumber(now) > toUtcDayNumber(dueDate);
-}
-
-function toUtcDayNumber(date: Date): number {
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-}
-
-export function deriveStatus({ totalCents, paidCents, dueDate, now }: StatusInput): OrderStatus {
+export function deriveStatus({
+  totalCents,
+  paidCents,
+  dueDate,
+  now,
+  refundedCents = 0,
+}: StatusInput): OrderStatus {
   if (paidCents >= totalCents) return "paid";
+  if (paidCents === 0 && refundedCents > 0) return "refunded";
   if (isPastDue(dueDate, now)) return "overdue";
   if (paidCents > 0) return "partially_paid";
   return "pending";
 }
 
-export function amountDueCents(totalCents: number, paidCents: number): number {
+export function amountDueCents(totalCents: number, paidCents: number, refundedCents = 0): number {
+  if (paidCents === 0 && refundedCents > 0) return 0;
   return Math.max(0, totalCents - paidCents);
 }
 ```
 
 ### The precedence decision
 
-The four statuses in the assignment are not mutually exclusive — an order can simultaneously have
-a partial payment and be past its due date. The order of the branches above is the actual business
-rule, and the README documents it:
+The assignment statuses are not mutually exclusive — an order can simultaneously have a partial
+payment and be past its due date. The order of the branches above is the actual business rule,
+and the README documents it:
 
 1. **`paid` wins over everything.** An order that was overdue and has since been settled shows as
    `paid`. This is the edge case the assignment explicitly asks about. The reasoning: status
    answers "what do I need to do about this order", and a settled order needs nothing. The history
    of having been late is real information, but it belongs in a `paidLate` flag or an audit log,
    not in a field whose job is to drive a work queue. Listed as an improvement in the roadmap.
-2. **`overdue` wins over `partially_paid` and `pending`.** A half-paid order that is past due is
+2. **`refunded` wins over `overdue`.** Once every recorded payment has been reversed, the order is
+   closed — it must not reappear in the overdue filter just because the due date has passed. A
+   never-paid order (`refundedCents === 0`) stays `pending` or `overdue`.
+3. **`overdue` wins over `partially_paid` and `pending`.** A half-paid order that is past due is
    more urgent than a half-paid order that is not, and collapsing the two would hide it from the
-   overdue filter, which is the filter a collections user actually opens.
+   overdue filter, which is the filter a collections user actually opens. A partial refund that
+   leaves a past-due balance stays `overdue`.
 
 ### Other edge cases to document
 
@@ -140,15 +145,15 @@ rule, and the README documents it:
 
 ### Reverse transitions (refunds)
 
-`deriveStatus` has no refund-specific branch. Decreasing `paidCents` is enough, because status is
-derived from the current snapshot. The cases a refund must produce, using the same `now` of
-2026-08-13:
+`paidCents === 0` is not enough to tell "never paid" from "fully reversed", so `deriveStatus` takes
+`refundedCents`. The cases a refund must produce, using the same `now` of 2026-08-13:
 
-| before (paid) | after (paid) | due date | expected |
-|---------------|--------------|----------|----------|
-| 1000 | 400 | future | `paid` → `partially_paid` |
-| 1000 | 0 | future | `paid` → `pending` |
-| 1000 | 400 | past | `paid` → `overdue` |
+| before (paid) | after (paid) | refunded | due date | expected |
+|---------------|--------------|----------|----------|----------|
+| 1000 | 400 | 600 | future | `paid` → `partially_paid` |
+| 1000 | 0 | 1000 | future | `paid` → `refunded` |
+| 1000 | 0 | 1000 | past | `paid` → `refunded` |
+| 1000 | 400 | 600 | past | `paid` → `overdue` |
 
 Covered in `tests/unit/status.test.ts` under "status after a refund reduces paidCents".
 

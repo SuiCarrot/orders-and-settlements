@@ -38,8 +38,8 @@ describe("recordRefund", () => {
 
     const serialised = serialiseOrder(after);
     expect(after.paidCents).toBe(0);
-    expect(serialised.status).toBe("pending");
-    expect(serialised.amountDue).toBe("1000.00");
+    expect(serialised.status).toBe("refunded");
+    expect(serialised.amountDue).toBe("0.00");
     expect(after.payments[0].refunds).toHaveLength(1);
     expect(after.events.map((event) => event.type)).toEqual([
       "order.created",
@@ -49,7 +49,36 @@ describe("recordRefund", () => {
     expect(after.events[2]).toMatchObject({
       type: "refund.recorded",
       fromStatus: "partially_paid",
-      toStatus: "pending",
+      toStatus: "refunded",
+    });
+  });
+
+  it("is refunded rather than overdue when a full refund lands after the due date", async () => {
+    const pastDue = addDays(new Date(), -3).toISOString().slice(0, 10);
+    const order = await createOrder(TEST_USER_ID, {
+      customer: "Late Refund Co",
+      dueDate: pastDue,
+      items: [{ description: "Widget", quantity: 2, unitPrice: "500.00" }],
+    });
+    const { order: paid } = await recordPayment(TEST_USER_ID, order.id, {
+      amount: "1000.00",
+      date: today,
+    });
+    expect(serialiseOrder(paid).status).toBe("paid");
+
+    const { order: after } = await recordRefund(TEST_USER_ID, order.id, paid.payments[0].id, {
+      amount: "1000.00",
+      date: today,
+      reason: "Customer cancelled",
+    });
+
+    const serialised = serialiseOrder(after);
+    expect(serialised.status).toBe("refunded");
+    expect(serialised.amountDue).toBe("0.00");
+    expect(after.events.at(-1)).toMatchObject({
+      type: "refund.recorded",
+      fromStatus: "paid",
+      toStatus: "refunded",
     });
   });
 

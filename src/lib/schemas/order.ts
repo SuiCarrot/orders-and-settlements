@@ -36,8 +36,10 @@ export const updateOrderRequestSchema = updateOrderSchema
 
 export const deleteOrderRequestSchema = confirmPasswordSchema;
 
+const orderStatusEnum = z.enum(["pending", "partially_paid", "paid", "overdue", "refunded"]);
+
 export const listOrdersSchema = z.object({
-  status: z.enum(["pending", "partially_paid", "paid", "overdue"]).optional(),
+  status: orderStatusEnum.optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -80,7 +82,7 @@ export const exportOrdersSchema = z
   .object({
     from: z.iso.date(),
     to: z.iso.date(),
-    status: z.enum(["pending", "partially_paid", "paid", "overdue"]).optional(),
+    status: orderStatusEnum.optional(),
   })
   .refine((value) => value.from <= value.to, { message: "from must not be after to." })
   .refine(

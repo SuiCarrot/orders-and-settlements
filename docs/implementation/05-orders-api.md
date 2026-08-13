@@ -136,7 +136,7 @@ export const updateOrderSchema = z.object({
 });
 
 export const listOrdersSchema = z.object({
-  status: z.enum(["pending", "partially_paid", "paid", "overdue"]).optional(),
+  status: z.enum(["pending", "partially_paid", "paid", "overdue", "refunded"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(100).default(20),
 });
@@ -222,23 +222,29 @@ function statusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
   switch (status) {
     case "paid":
       return { paidCents: { gte: prisma.order.fields.totalCents } };
+    case "refunded":
+      return { paidCents: 0, refunds: { some: {} } };
     case "overdue":
-      return { paidCents: { lt: prisma.order.fields.totalCents }, dueDate: { lt: today } };
+      return {
+        paidCents: { lt: prisma.order.fields.totalCents },
+        dueDate: { lt: today },
+        NOT: { paidCents: 0, refunds: { some: {} } },
+      };
     case "partially_paid":
       return {
         paidCents: { gt: 0, lt: prisma.order.fields.totalCents },
         dueDate: { gte: today },
       };
     case "pending":
-      return { paidCents: 0, dueDate: { gte: today } };
+      return { paidCents: 0, dueDate: { gte: today }, refunds: { none: {} } };
   }
 }
 ```
 
-The `dueDate: { gte: today }` clauses on `pending` and `partially_paid` are what make the filters
-mutually exclusive and consistent with the precedence rule from
-[04-domain.md](04-domain.md) — an overdue order must not also appear under `pending`. A unit test
-asserts that the four filters partition the set: the sum of their counts equals the total.
+The `dueDate: { gte: today }` clauses on `pending` and `partially_paid`, and the refund exclusions
+on `pending` and `overdue`, are what make the filters mutually exclusive and consistent with the
+precedence rule from [04-domain.md](04-domain.md) — a fully refunded order must not also appear
+under `overdue`. The five filters partition the set: the sum of their counts equals the total.
 
 This is also the reason `paidCents` is denormalised. Filtering on a `SUM` over the payments table
 would need a `HAVING` clause and could not use an index.

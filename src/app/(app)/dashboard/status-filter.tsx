@@ -9,6 +9,7 @@ const STATUSES: { value?: OrderStatus; label: string }[] = [
   { value: "partially_paid", label: "Partially paid" },
   { value: "paid", label: "Paid" },
   { value: "overdue", label: "Overdue" },
+  { value: "refunded", label: "Refunded" },
 ];
 
 interface StatusFilterProps {

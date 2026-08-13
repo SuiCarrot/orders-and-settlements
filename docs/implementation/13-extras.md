@@ -164,9 +164,10 @@ model Refund {
 Rules, all enforced inside the same locked transaction as the payment flow:
 
 1. A refund cannot exceed the payment it references, minus refunds already issued against it.
-2. `paidCents` is decremented by the refund amount, so the derived status flows backwards
-   naturally: a `paid` order refunded in part becomes `partially_paid`, or `overdue` if it is also
-   past due. No new status is needed, which is the payoff of deriving status instead of storing it.
+2. `paidCents` is decremented by the refund amount. A partial refund reopens the order
+   (`partially_paid`, or `overdue` if past due). A refund that clears `paidCents` derives
+   `refunded`, so a reversed order does not fall through to `overdue` just because the due date
+   has passed.
 3. The refund row is never updated or deleted. A mistaken refund is corrected by a new payment.
 4. The `paid_cents >= 0` CHECK constraint keeps the floor.
 

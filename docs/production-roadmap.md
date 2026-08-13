@@ -64,7 +64,7 @@ The section a fintech reviewer will read closest.
 
 - **Immutable payments with compensating entries.** Refunds are a separate `Refund` row, never a
   negative payment. They lock the same order row as payments, decrement `paidCents`, and reverse
-  derived status naturally (`paid` → `partially_paid` / `overdue` / `pending`). A mistaken refund
+  derived status (`paid` → `partially_paid` / `overdue` / `refunded`). A mistaken refund
   is corrected by a new payment — refund rows are never updated or deleted.
 
 - **A double-entry ledger instead of a denormalised `paidCents`.** *(scope decision)* The current

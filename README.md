@@ -132,11 +132,12 @@ The UI turns `maxAllowedAmount` into a "Use $600.00 instead" button. That is wha
 
 ## Status derivation
 
-Status is not a column. It is a pure function of `totalCents`, `paidCents`, `dueDate` and today (`src/server/domain/status.ts`). The four labels in the assignment are not mutually exclusive — an order can be both partially paid and past due — so the branch order *is* the business rule:
+Status is not a column. It is a pure function of `totalCents`, `paidCents`, `dueDate`, refunds and today (`src/server/domain/status.ts`). The assignment labels are not mutually exclusive — an order can be both partially paid and past due — so the branch order *is* the business rule:
 
 1. **`paid` wins over everything.** An order that was overdue and has since been settled shows as `paid`. Status answers "what do I need to do about this order"; a settled order needs nothing. The history of having been late is real information, but it belongs in an audit log, not in a field that drives a work queue.
-2. **`overdue` wins over `partially_paid` and `pending`.** A half-paid order that is past due is more urgent than one that is not. Collapsing the two would hide it from the overdue filter.
-3. **Otherwise `partially_paid` if anything has been paid, else `pending`.**
+2. **`refunded` wins over `overdue`.** An order whose payments have all been reversed (`paidCents === 0` and at least one refund) is closed, even if the due date has passed. It is not a collections item. A never-paid order stays `pending` / `overdue`.
+3. **`overdue` wins over `partially_paid` and `pending`.** A half-paid order that is past due is more urgent than one that is not. Collapsing the two would hide it from the overdue filter. A partial refund that leaves a past-due balance stays `overdue`.
+4. **Otherwise `partially_paid` if anything has been paid, else `pending`.**
 
 Due dates are compared as **calendar days in UTC**. An order due today is not overdue; it becomes overdue at `00:00:00Z` the following day.
 
@@ -196,7 +197,7 @@ Shipped after the scored core:
 
 - **Audit log.** `order_events` written inside the same transaction as the change they describe. Status in the log is derived with the same function the UI uses. Seeded demo orders created before this shipped have no historical events; new activity is logged.
 - **CSV export.** Dashboard control and `GET /api/orders/export?from=&to=&status=`. Same filters as the list endpoint. Fields are RFC 4180-quoted; values starting with `=`, `+`, `-` or `@` are prefixed to prevent spreadsheet formula injection. Range is capped at 366 days.
-- **Refunds.** A separate `Refund` row referencing the payment it reverses — never a negative payment. The same `SELECT … FOR UPDATE` serialises a refund racing a payment. `paidCents` is decremented, so derived status flows backwards (`paid` → `partially_paid` / `overdue` / `pending`) without a new status.
+- **Refunds.** A separate `Refund` row referencing the payment it reverses — never a negative payment. The same `SELECT … FOR UPDATE` serialises a refund racing a payment. `paidCents` is decremented; a refund that clears the balance derives `refunded` instead of falling through to `overdue` or `pending`.
 - **Dark mode.** Follows the system preference, with a toggle in the header and on the sign-in screen.
 
 ---
@@ -210,7 +211,7 @@ Shipped after the scored core:
 - **Authentication delegated to Better Auth** (scrypt, revocable sessions). Hand-rolled bcrypt+JWT was considered and rejected: the version worth defending in a fintech review is days of work in an area the assignment excluded from scoring.
 - **`proxy.ts` is not a security boundary.** It only checks that a cookie *exists*, so a logged-out visitor is redirected without a flash of empty UI. Authorization is `requireUser()` plus `userId` on every query. Next.js middleware can be bypassed (CVE-2025-29927); treating it as auth would be the mistake a reviewer looks for.
 - **Offset pagination** on the API; the dashboard filters the loaded list in the browser so status tabs do not round-trip to Neon. Opening an order from that list reads the already-fetched payload from a tab-local cache (`sessionStorage`) instead of querying the order again.
-- **Payments are append-only.** A mistake is a `Refund` row that decrements `paidCents`, not an `UPDATE` or `DELETE` on the payment. Derived status flows backwards for free.
+- **Payments are append-only.** A mistake is a `Refund` row that decrements `paidCents`, not an `UPDATE` or `DELETE` on the payment. Clearing the balance derives `refunded`; a mistaken refund is corrected by a new payment.
 
 ---
 

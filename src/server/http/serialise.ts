@@ -1,5 +1,5 @@
 import type { Order, OrderEvent, OrderItem, Payment, Refund } from "@/generated/prisma";
-import { amountDueCents, deriveStatus } from "@/server/domain/status";
+import { amountDueCents, deriveStatus, sumRefundedCents } from "@/server/domain/status";
 import { formatCents } from "@/server/domain/money";
 import type { OrderWithRelations } from "@/server/services/order-service";
 
@@ -56,6 +56,7 @@ type SerialisableOrder = Pick<Order, "id" | "customer" | "dueDate" | "totalCents
 };
 
 export function serialiseOrder(order: SerialisableOrder | OrderWithRelations, now = new Date()) {
+  const refundedCents = sumRefundedCents(order.payments ?? []);
   return {
     id: order.id,
     customer: order.customer,
@@ -65,10 +66,11 @@ export function serialiseOrder(order: SerialisableOrder | OrderWithRelations, no
       paidCents: order.paidCents,
       dueDate: order.dueDate,
       now,
+      refundedCents,
     }),
     orderTotal: formatCents(order.totalCents),
     amountPaid: formatCents(order.paidCents),
-    amountDue: formatCents(amountDueCents(order.totalCents, order.paidCents)),
+    amountDue: formatCents(amountDueCents(order.totalCents, order.paidCents, refundedCents)),
     items: order.items.map(serialiseItem),
     payments: order.payments?.map(serialisePayment),
     events: order.events?.map(serialiseEvent),

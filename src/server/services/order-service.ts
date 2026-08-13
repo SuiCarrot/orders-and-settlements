@@ -90,21 +90,27 @@ export async function getOrder(userId: string, orderId: string): Promise<OrderWi
  * SQL equivalent of each branch of `deriveStatus` (see src/server/domain/status.ts). Status is
  * not a column, so it cannot be filtered directly — this must stay in sync with that function by
  * hand. The seed script (phase 9) creates one order per status and the integration suite asserts
- * these four clauses partition the full set (every order matches exactly one filter).
+ * these clauses partition the full set (every order matches exactly one filter).
  */
 export function orderStatusWhere(status: OrderStatus, today: Date): Prisma.OrderWhereInput {
   switch (status) {
     case "paid":
       return { paidCents: { gte: prisma.order.fields.totalCents } };
+    case "refunded":
+      return { paidCents: 0, refunds: { some: {} } };
     case "overdue":
-      return { paidCents: { lt: prisma.order.fields.totalCents }, dueDate: { lt: today } };
+      return {
+        paidCents: { lt: prisma.order.fields.totalCents },
+        dueDate: { lt: today },
+        NOT: { paidCents: 0, refunds: { some: {} } },
+      };
     case "partially_paid":
       return {
         paidCents: { gt: 0, lt: prisma.order.fields.totalCents },
         dueDate: { gte: today },
       };
     case "pending":
-      return { paidCents: 0, dueDate: { gte: today } };
+      return { paidCents: 0, dueDate: { gte: today }, refunds: { none: {} } };
   }
 }
 
@@ -142,14 +148,22 @@ export interface OrderSummary {
 /** One aggregate query pair, not a full order list, to answer "what do I owe" cheaply. */
 export async function getOrderSummary(userId: string): Promise<OrderSummary> {
   const today = startOfTodayUtc();
+  const notFullyRefunded: Prisma.OrderWhereInput = {
+    NOT: { paidCents: 0, refunds: { some: {} } },
+  };
 
   const [outstanding, overdue, orderCount] = await Promise.all([
     prisma.order.aggregate({
-      where: { userId },
+      where: { userId, ...notFullyRefunded },
       _sum: { totalCents: true, paidCents: true },
     }),
     prisma.order.aggregate({
-      where: { userId, dueDate: { lt: today }, paidCents: { lt: prisma.order.fields.totalCents } },
+      where: {
+        userId,
+        dueDate: { lt: today },
+        paidCents: { lt: prisma.order.fields.totalCents },
+        ...notFullyRefunded,
+      },
       _sum: { totalCents: true, paidCents: true },
     }),
     prisma.order.count({ where: { userId } }),
